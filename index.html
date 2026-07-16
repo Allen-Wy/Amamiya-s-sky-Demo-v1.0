@@ -1554,13 +1554,13 @@
       }
 
       if (game.fishing.phase === "bite") {
-        const speed = 0.52 + game.rodLevel * 0.05;
+        const speed = 2.2 + game.rodLevel * 0.2;
         game.fishing.biteCursor += game.fishing.biteDirection * speed * game.dt;
-        if (game.fishing.biteCursor >= 0.92) {
-          game.fishing.biteCursor = 0.92;
+        if (game.fishing.biteCursor >= 0.94) {
+          game.fishing.biteCursor = 0.94;
           game.fishing.biteDirection = -1;
-        } else if (game.fishing.biteCursor <= 0.08) {
-          game.fishing.biteCursor = 0.08;
+        } else if (game.fishing.biteCursor <= 0.06) {
+          game.fishing.biteCursor = 0.06;
           game.fishing.biteDirection = 1;
         }
         updateBiteMeterUi();
@@ -1582,8 +1582,8 @@
       game.fishing.castTargetY = castTarget.y;
       game.player.facingX = clamp(castTarget.x - game.player.x, -1, 1);
       game.player.facingY = 1;
-      fishingButton.disabled = true;
-      fishingButton.textContent = "等待";
+      fishingButton.disabled = false;
+      fishingButton.textContent = "收竿";
       updateBiteMeterUi();
     }
 
@@ -2194,6 +2194,8 @@
       event.stopPropagation();
       if (game.fishing.phase === "ready") {
         startCast();
+      } else if (game.fishing.phase === "waiting") {
+        exitFishing();
       } else if (game.fishing.phase === "bite") {
         resolveBiteAttempt();
       }
