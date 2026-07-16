@@ -255,27 +255,27 @@
     }
 
     #fishingOverlay {
-      background: linear-gradient(180deg, rgba(4, 35, 49, 0.28), rgba(4, 35, 49, 0.45));
-      backdrop-filter: blur(3px);
+      background: transparent;
     }
 
     #biteText {
       position: absolute;
       left: 50%;
-      top: 36%;
+      top: calc(var(--safe-top) + 92px);
       transform: translate(-50%, -50%) scale(0.9);
-      padding: 12px 16px;
-      border-radius: 18px;
-      border: 3px solid rgba(255,255,255,0.75);
-      background: rgba(255, 92, 92, 0.86);
+      padding: 8px 14px;
+      border-radius: 16px;
+      border: 3px solid rgba(255,255,255,0.72);
+      background: rgba(255, 106, 95, 0.88);
       color: #fff7e8;
-      font-size: 34px;
+      font-size: 24px;
       font-weight: 900;
       letter-spacing: 2px;
       text-shadow: 0 3px rgba(99, 29, 29, 0.3);
       opacity: 0;
       transition: opacity 0.1s linear, transform 0.1s linear;
       pointer-events: none;
+      z-index: 32;
     }
 
     #biteText.show {
@@ -283,17 +283,57 @@
       transform: translate(-50%, -50%) scale(1);
     }
 
-    #fishingHint {
+    #biteMeter {
       position: absolute;
       left: 50%;
-      top: calc(36% + 56px);
+      top: calc(var(--safe-top) + 18px);
       transform: translateX(-50%);
-      width: calc(100% - 48px);
-      text-align: center;
-      color: rgba(255,255,255,0.96);
-      font-size: 16px;
-      text-shadow: 0 2px 8px rgba(0,0,0,0.35);
+      width: min(86%, 360px);
+      padding: 12px;
+      border-radius: 20px;
+      border: 3px solid rgba(121, 73, 36, 0.82);
+      background: rgba(255, 247, 220, 0.82);
+      box-shadow: 0 8px 0 rgba(140, 88, 41, 0.55), 0 18px 26px rgba(0, 28, 32, 0.18);
+      opacity: 0;
+      transition: opacity 0.12s ease;
       pointer-events: none;
+      z-index: 31;
+    }
+
+    #biteMeter.show {
+      opacity: 1;
+    }
+
+    #biteMeterTrack {
+      position: relative;
+      height: 22px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: linear-gradient(90deg, #65c4ff 0%, #a6e4ff 28%, #fff7d8 50%, #a6e4ff 72%, #65c4ff 100%);
+      border: 3px solid rgba(117, 75, 35, 0.78);
+    }
+
+    #biteBestZone {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 28%;
+      background: linear-gradient(180deg, rgba(255, 216, 95, 0.9), rgba(255, 163, 66, 0.92));
+      box-shadow: inset 0 0 0 3px rgba(255, 246, 198, 0.88);
+    }
+
+    #biteCursor {
+      position: absolute;
+      top: -4px;
+      bottom: -4px;
+      width: 12px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #fff, #ff845d);
+      border: 3px solid rgba(113, 58, 26, 0.82);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+      transform: translateX(-50%);
     }
 
     #fishingButton {
@@ -301,6 +341,12 @@
       right: var(--safe-right);
       bottom: calc(var(--safe-bottom) + 18px);
       z-index: 31;
+    }
+
+    #fishingButton[disabled] {
+      filter: grayscale(0.35);
+      opacity: 0.72;
+      cursor: default;
     }
 
     #modalOverlay {
@@ -501,8 +547,13 @@
     <button id="contextButton" type="button">钓鱼</button>
 
     <div id="fishingOverlay">
+      <div id="biteMeter">
+        <div id="biteMeterTrack">
+          <div id="biteBestZone"></div>
+          <div id="biteCursor"></div>
+        </div>
+      </div>
       <div id="biteText">咬钩！</div>
-      <div id="fishingHint">点击右下角抛竿，看到提示后 2 秒内点屏幕任意位置拉杆</div>
       <button id="fishingButton" type="button">抛竿</button>
     </div>
 
@@ -536,8 +587,10 @@
     const toast = document.getElementById("toast");
     const contextButton = document.getElementById("contextButton");
     const fishingOverlay = document.getElementById("fishingOverlay");
+    const biteMeter = document.getElementById("biteMeter");
+    const biteCursor = document.getElementById("biteCursor");
+    const biteBestZone = document.getElementById("biteBestZone");
     const fishingButton = document.getElementById("fishingButton");
-    const fishingHint = document.getElementById("fishingHint");
     const biteText = document.getElementById("biteText");
     const modalOverlay = document.getElementById("modalOverlay");
     const modalTitle = document.getElementById("modalTitle");
@@ -558,6 +611,7 @@
       hut: { x: 109, y: 98, width: 34, height: 28 },
       waterSpot: { x: 116, y: 175 },
       hutSpot: { x: 109, y: 134 },
+      castTarget: { x: 118, y: 276 },
       boatDockX: 145,
       boatY: 190
     };
@@ -599,8 +653,12 @@
         biteAt: 0,
         resolveAt: 0,
         exitAt: 0,
-        bobberX: WORLD.waterSpot.x,
-        bobberY: WORLD.waterSpot.y + 5,
+        bobberX: WORLD.castTarget.x,
+        bobberY: WORLD.castTarget.y,
+        castTargetX: WORLD.castTarget.x,
+        castTargetY: WORLD.castTarget.y,
+        biteCursor: 0.12,
+        biteDirection: 1,
         result: null
       },
       save: {
@@ -667,11 +725,18 @@
       game.fishing.biteAt = 0;
       game.fishing.resolveAt = 0;
       game.fishing.exitAt = 0;
-      game.fishing.bobberX = WORLD.waterSpot.x;
-      game.fishing.bobberY = WORLD.waterSpot.y + 7;
+      game.fishing.bobberX = WORLD.castTarget.x;
+      game.fishing.bobberY = WORLD.castTarget.y;
+      game.fishing.castTargetX = WORLD.castTarget.x;
+      game.fishing.castTargetY = WORLD.castTarget.y;
+      game.fishing.biteCursor = 0.12;
+      game.fishing.biteDirection = 1;
       game.fishing.result = null;
       fishingOverlay.style.display = "none";
+      biteMeter.classList.remove("show");
       biteText.classList.remove("show");
+      fishingButton.disabled = false;
+      fishingButton.textContent = "抛竿";
       toast.classList.remove("show");
       game.toast.text = "";
       game.toast.until = 0;
@@ -863,8 +928,9 @@
       const rare = 25 + levelOffset * 3;
       const precious = 5 + levelOffset * 1;
       const common = 100 - rare - precious;
-      const biteWindow = 2 + levelOffset * 0.1;
-      return { common, rare, precious, biteWindow };
+      const biteWindow = 2.4 + levelOffset * 0.15;
+      const sweetSpot = 0.28 + levelOffset * 0.02;
+      return { common, rare, precious, biteWindow, sweetSpot };
     }
 
     function getUpgradeCost(level) {
@@ -961,6 +1027,18 @@
       contextButton.style.display = "block";
     }
 
+    function updateBiteMeterUi() {
+      const stats = getRodStats();
+      biteBestZone.style.width = (stats.sweetSpot * 100).toFixed(1) + "%";
+      biteCursor.style.left = (game.fishing.biteCursor * 100).toFixed(1) + "%";
+    }
+
+    function getCastTarget() {
+      const targetX = clamp(game.player.x + game.player.facingX * 16, 86, 142);
+      const targetY = clamp(game.player.y + 92, 244, 304);
+      return { x: targetX, y: targetY };
+    }
+
     function enterFishing() {
       game.fishing.active = true;
       game.fishing.phase = "ready";
@@ -969,10 +1047,19 @@
       game.fishing.biteAt = 0;
       game.fishing.resolveAt = 0;
       game.fishing.exitAt = 0;
+      game.fishing.biteCursor = 0.12;
+      game.fishing.biteDirection = 1;
+      const castTarget = getCastTarget();
+      game.fishing.castTargetX = castTarget.x;
+      game.fishing.castTargetY = castTarget.y;
+      game.fishing.bobberX = game.player.x + game.player.facingX * 10;
+      game.fishing.bobberY = game.player.y + 18;
       fishingOverlay.style.display = "block";
+      biteMeter.classList.remove("show");
       biteText.classList.remove("show");
+      fishingButton.disabled = false;
       fishingButton.textContent = "抛竿";
-      fishingHint.textContent = "点击右下角抛竿，看到提示后 2 秒内点屏幕任意位置拉杆";
+      updateBiteMeterUi();
       updateContextButton();
     }
 
@@ -980,7 +1067,10 @@
       game.fishing.active = false;
       game.fishing.phase = "idle";
       fishingOverlay.style.display = "none";
+      biteMeter.classList.remove("show");
       biteText.classList.remove("show");
+      fishingButton.disabled = false;
+      fishingButton.textContent = "抛竿";
       updateContextButton();
     }
 
@@ -1002,16 +1092,25 @@
       if (fishType) {
         game.fishCounts[fishType] += 1;
         game.fishing.result = fishType;
-        showToast("钓到" + FISH_NAMES[fishType] + "鱼！", 1500);
       } else {
         game.fishing.result = null;
-        showToast("鱼逃跑了", 1200);
       }
       game.fishing.phase = "done";
-      game.fishing.exitAt = now + 650;
+      game.fishing.exitAt = now + 520;
+      biteMeter.classList.remove("show");
       biteText.classList.remove("show");
-      fishingHint.textContent = fishType ? "收线成功，自动回到岸边" : "本次没钓到，马上返回";
+      fishingButton.disabled = true;
+      fishingButton.textContent = success ? "上鱼" : "脱钩";
       saveGame(now);
+    }
+
+    function resolveBiteAttempt() {
+      if (game.fishing.phase !== "bite") {
+        return;
+      }
+      const stats = getRodStats();
+      const success = Math.abs(game.fishing.biteCursor - 0.5) <= stats.sweetSpot / 2;
+      finishFishing(success);
     }
 
     function updateFishing(now) {
@@ -1023,8 +1122,13 @@
         const biteWindow = getRodStats().biteWindow;
         game.fishing.phase = "bite";
         game.fishing.resolveAt = now + biteWindow * 1000;
+        game.fishing.biteCursor = 0.18 + Math.random() * 0.08;
+        game.fishing.biteDirection = Math.random() > 0.5 ? 1 : -1;
+        biteMeter.classList.add("show");
         biteText.classList.add("show");
-        fishingHint.textContent = "快点屏幕任意位置拉杆！";
+        fishingButton.disabled = false;
+        fishingButton.textContent = "拉杆";
+        updateBiteMeterUi();
       }
 
       if (game.fishing.phase === "bite" && now >= game.fishing.resolveAt) {
@@ -1037,11 +1141,26 @@
 
       if (game.fishing.phase === "waiting" || game.fishing.phase === "bite") {
         const wobble = Math.sin(now * 0.03) * 2 + Math.sin(now * 0.07) * 1.2;
-        game.fishing.bobberX = WORLD.waterSpot.x + wobble * 0.35;
-        game.fishing.bobberY = WORLD.waterSpot.y + 7 + Math.cos(now * 0.024) * 0.8;
+        game.fishing.bobberX += (game.fishing.castTargetX - game.fishing.bobberX) * 0.12;
+        game.fishing.bobberY += (game.fishing.castTargetY - game.fishing.bobberY) * 0.12;
+        game.fishing.bobberX += wobble * 0.08;
+        game.fishing.bobberY += Math.cos(now * 0.024) * 0.06;
       } else {
-        game.fishing.bobberX = WORLD.waterSpot.x;
-        game.fishing.bobberY = WORLD.waterSpot.y + 7;
+        game.fishing.bobberX = game.fishing.castTargetX;
+        game.fishing.bobberY = game.fishing.castTargetY;
+      }
+
+      if (game.fishing.phase === "bite") {
+        const speed = 0.52 + game.rodLevel * 0.05;
+        game.fishing.biteCursor += game.fishing.biteDirection * speed * game.dt;
+        if (game.fishing.biteCursor >= 0.92) {
+          game.fishing.biteCursor = 0.92;
+          game.fishing.biteDirection = -1;
+        } else if (game.fishing.biteCursor <= 0.08) {
+          game.fishing.biteCursor = 0.08;
+          game.fishing.biteDirection = 1;
+        }
+        updateBiteMeterUi();
       }
     }
 
@@ -1050,14 +1169,19 @@
         return;
       }
       const now = performance.now();
-      const delay = 1000 + Math.random() * 2000;
+      const delay = 700 + Math.random() * 900;
+      const castTarget = getCastTarget();
       game.fishing.phase = "waiting";
       game.fishing.castAt = now;
       game.fishing.ignoreInputUntil = now + 220;
       game.fishing.biteAt = now + delay;
-      fishingButton.textContent = "等待中";
-      fishingHint.textContent = "鱼漂在晃，别提前点屏幕";
-      showToast("已抛竿", 900);
+      game.fishing.castTargetX = castTarget.x;
+      game.fishing.castTargetY = castTarget.y;
+      game.player.facingX = clamp(castTarget.x - game.player.x, -1, 1);
+      game.player.facingY = 1;
+      fishingButton.disabled = true;
+      fishingButton.textContent = "等待";
+      updateBiteMeterUi();
     }
 
     function tryUpgrade() {
@@ -1185,37 +1309,41 @@
       const w = view.width;
       const h = view.height;
 
-      const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, "#f4ffca");
-      sky.addColorStop(0.28, "#d8f4a8");
-      sky.addColorStop(0.55, "#81d595");
-      sky.addColorStop(1, "#3db8d0");
-      ctx.fillStyle = sky;
+      const meadow = ctx.createLinearGradient(0, 0, 0, h);
+      meadow.addColorStop(0, "#ecf7ba");
+      meadow.addColorStop(0.23, "#d3eda2");
+      meadow.addColorStop(0.46, "#a9d26a");
+      meadow.addColorStop(0.6, "#9bc95d");
+      meadow.addColorStop(1, "#75cfbe");
+      ctx.fillStyle = meadow;
       ctx.fillRect(0, 0, w, h);
 
       const shoreline = worldToScreen(0, WORLD.shorelineY);
       const water = ctx.createLinearGradient(0, shoreline.y, 0, h);
-      water.addColorStop(0, "#7de9de");
-      water.addColorStop(0.18, "#59d6db");
-      water.addColorStop(0.7, "#34b8c9");
-      water.addColorStop(1, "#268daf");
+      water.addColorStop(0, "#98f0e7");
+      water.addColorStop(0.18, "#64dbdf");
+      water.addColorStop(0.72, "#37b7ca");
+      water.addColorStop(1, "#2290af");
       ctx.fillStyle = water;
       ctx.fillRect(0, shoreline.y, w, h - shoreline.y);
 
-      ctx.fillStyle = "#f6e3ac";
+      ctx.fillStyle = "#f8efc4";
       ctx.beginPath();
-      ctx.moveTo(0, worldToScreen(0, WORLD.shorelineY - 8).y);
-      ctx.bezierCurveTo(w * 0.18, shoreline.y - 26, w * 0.38, shoreline.y + 14, w * 0.62, shoreline.y - 8);
-      ctx.bezierCurveTo(w * 0.84, shoreline.y - 24, w * 0.94, shoreline.y + 8, w, shoreline.y - 2);
+      ctx.moveTo(0, worldToScreen(0, WORLD.shorelineY - 18).y);
+      ctx.bezierCurveTo(w * 0.22, shoreline.y - 18, w * 0.34, shoreline.y + 14, w * 0.56, shoreline.y + 4);
+      ctx.bezierCurveTo(w * 0.74, shoreline.y - 4, w * 0.9, shoreline.y + 10, w, shoreline.y - 10);
       ctx.lineTo(w, shoreline.y + 40);
       ctx.lineTo(0, shoreline.y + 22);
       ctx.closePath();
       ctx.fill();
 
+      ctx.fillStyle = "rgba(122, 178, 86, 0.22)";
+      ctx.fillRect(0, 0, w, shoreline.y - 40);
+
       ctx.strokeStyle = "rgba(255,255,255,0.58)";
       ctx.lineWidth = 3;
-      for (let i = 0; i < 5; i += 1) {
-        const waveY = shoreline.y + 5 + i * 15 + Math.sin(now * 0.0017 + i) * 4;
+      for (let i = 0; i < 6; i += 1) {
+        const waveY = shoreline.y + 7 + i * 17 + Math.sin(now * 0.0017 + i) * 4;
         ctx.beginPath();
         ctx.moveTo(8, waveY);
         for (let x = 8; x < w - 8; x += 20) {
@@ -1361,19 +1489,32 @@
 
       ctx.fillStyle = "rgba(0,0,0,0.15)";
       ctx.beginPath();
-      ctx.ellipse(p.x, p.y + r * 1.7, r * 1.05, r * 0.6, 0, 0, Math.PI * 2);
+      ctx.ellipse(p.x, p.y + r * 2.15, r * 1.25, r * 0.62, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      ctx.fillStyle = "#3b2c22";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y - r * 0.9, r * 0.84, Math.PI, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = "#f7c493";
       ctx.beginPath();
-      ctx.arc(p.x, p.y - r * 0.7, r * 0.72, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y - r * 0.72, r * 0.74, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#f9f2c5";
-      ctx.fillRect(p.x - r * 0.86, p.y - r * 0.1, r * 1.72, r * 1.52);
-      ctx.fillStyle = "#d35d43";
-      ctx.fillRect(p.x - r * 0.92, p.y + r * 0.2, r * 1.84, r * 0.74);
+      ctx.fillStyle = "#f7ecd5";
+      ctx.fillRect(p.x - r * 0.84, p.y - r * 0.08, r * 1.68, r * 1.18);
+      ctx.fillStyle = "#7dc6f1";
+      ctx.fillRect(p.x - r * 0.92, p.y + r * 0.28, r * 1.84, r * 0.72);
+      ctx.fillStyle = "#f7c493";
+      ctx.fillRect(p.x - r * 1.12, p.y + r * 0.08, r * 0.26, r * 0.88);
+      ctx.fillRect(p.x + r * 0.86, p.y + r * 0.08, r * 0.26, r * 0.88);
+      ctx.fillStyle = "#63493a";
+      ctx.fillRect(p.x - r * 0.58, p.y + r * 1.0, r * 0.34, r * 0.84);
+      ctx.fillRect(p.x + r * 0.24, p.y + r * 1.0, r * 0.34, r * 0.84);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(p.x - r * 0.28, p.y - r * 0.8, r * 0.16, r * 0.12);
+      ctx.fillRect(p.x + r * 0.12, p.y - r * 0.8, r * 0.16, r * 0.12);
       ctx.fillStyle = "#6f4a2a";
-      ctx.fillRect(p.x - r * 1.08, p.y - r * 0.14, r * 2.16, r * 0.34);
+      ctx.fillRect(p.x - r * 0.22, p.y - r * 0.42, r * 0.44, r * 0.08);
     }
 
     function drawFishingLayer(now) {
@@ -1381,11 +1522,22 @@
         return;
       }
       const p = worldToScreen(game.fishing.bobberX, game.fishing.bobberY);
+      const shoulder = worldToScreen(game.player.x + 1.5, game.player.y - 2);
+      const rodTip = {
+        x: shoulder.x + (p.x - shoulder.x) * 0.36,
+        y: shoulder.y + (p.y - shoulder.y) * 0.36 - 18
+      };
+      ctx.strokeStyle = "#7b4c21";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(shoulder.x, shoulder.y);
+      ctx.lineTo(rodTip.x, rodTip.y);
+      ctx.stroke();
+
       ctx.strokeStyle = "rgba(255,255,255,0.92)";
       ctx.lineWidth = 2;
-      const rodOrigin = worldToScreen(game.player.x, game.player.y - 6);
       ctx.beginPath();
-      ctx.moveTo(rodOrigin.x, rodOrigin.y);
+      ctx.moveTo(rodTip.x, rodTip.y);
       ctx.lineTo(p.x, p.y);
       ctx.stroke();
 
@@ -1408,16 +1560,23 @@
       ctx.clearRect(0, 0, view.width, view.height);
       drawSkyAndIsland(now);
 
-      drawTree(54, 48, 18);
-      drawTree(83, 55, 20);
-      drawTree(131, 52, 19);
-      drawTree(162, 62, 17);
-      drawTree(35, 87, 18);
-      drawTree(178, 92, 18);
-      drawRock(42, 174, 11);
-      drawRock(57, 187, 8);
-      drawRock(71, 176, 5);
-      drawRock(58, 201, 6);
+      drawTree(28, 24, 17);
+      drawTree(48, 18, 18);
+      drawTree(70, 20, 19);
+      drawTree(94, 19, 17);
+      drawTree(120, 20, 18);
+      drawTree(146, 19, 18);
+      drawTree(171, 24, 17);
+      drawTree(38, 56, 20);
+      drawTree(66, 48, 20);
+      drawTree(102, 46, 22);
+      drawTree(138, 50, 20);
+      drawTree(170, 58, 18);
+      drawRock(32, 174, 12);
+      drawRock(51, 187, 8);
+      drawRock(63, 177, 5);
+      drawRock(56, 200, 7);
+      drawRock(43, 219, 5);
       drawHut();
       drawPier();
       drawBoat();
@@ -1532,24 +1691,18 @@
 
     fishingButton.addEventListener("click", function (event) {
       event.stopPropagation();
-      startCast();
+      if (game.fishing.phase === "ready") {
+        startCast();
+      } else if (game.fishing.phase === "bite") {
+        resolveBiteAttempt();
+      }
     });
 
     fishingOverlay.addEventListener("pointerdown", function (event) {
-      if (!game.fishing.active) {
-        return;
-      }
       if (fishingButton.contains(event.target)) {
         return;
       }
-      if (performance.now() < game.fishing.ignoreInputUntil) {
-        return;
-      }
-      if (game.fishing.phase === "waiting") {
-        finishFishing(false);
-      } else if (game.fishing.phase === "bite") {
-        finishFishing(true);
-      }
+      event.stopPropagation();
     });
 
     modalActionButton.addEventListener("click", function () {
