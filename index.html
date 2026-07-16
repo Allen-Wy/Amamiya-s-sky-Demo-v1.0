@@ -788,6 +788,7 @@
         clickReady: false,
         sellReady: false,
         x: WORLD.boatDockX + 46,
+        y: WORLD.height + 40,
         visible: false
       },
       fishing: {
@@ -804,7 +805,8 @@
         castTargetY: WORLD.castTarget.y,
         biteCursor: 0.12,
         biteDirection: 1,
-        result: null
+        result: null,
+        escapingFish: []
       },
       save: {
         lastAutoSaveAt: 0
@@ -830,7 +832,9 @@
           phase: "waiting",
           nextArrivalInMs: BOAT_WAIT_MS,
           departInMs: 0,
-          sellReady: false
+          sellReady: false,
+          x: WORLD.boatDockX + 46,
+          y: WORLD.height + 40
         },
         savedAt: now
       };
@@ -963,17 +967,19 @@
       const nextArrivalInMs = Math.max(0, Math.floor(source.boat && source.boat.nextArrivalInMs || BOAT_WAIT_MS));
       const departInMs = Math.max(0, Math.floor(source.boat && source.boat.departInMs || 0));
       game.boat.phase = boatPhase;
-      game.boat.sellReady = boatPhase === "docked" ? Boolean(source.boat && source.boat.sellReady) : false;
       if (boatPhase === "docked" && departInMs > 0) {
         game.boat.departAt = now + departInMs;
         game.boat.nextArrivalAt = now + BOAT_WAIT_MS;
         game.boat.x = WORLD.boatDockX;
+        game.boat.y = WORLD.boatY;
         game.boat.visible = true;
+        game.boat.sellReady = Boolean(source.boat && source.boat.sellReady);
       } else {
         game.boat.phase = "waiting";
         game.boat.departAt = 0;
         game.boat.nextArrivalAt = now + nextArrivalInMs;
-        game.boat.x = WORLD.boatDockX + 46;
+        game.boat.x = Number(source.boat && source.boat.x) || (WORLD.boatDockX + 46);
+        game.boat.y = Number(source.boat && source.boat.y) || (WORLD.height + 40);
         game.boat.visible = false;
         game.boat.sellReady = false;
       }
@@ -1018,7 +1024,9 @@
           phase: game.boat.phase,
           nextArrivalInMs: Math.max(0, Math.ceil(game.boat.nextArrivalAt - now)),
           departInMs: Math.max(0, Math.ceil(game.boat.departAt - now)),
-          sellReady: game.boat.sellReady
+          sellReady: game.boat.sellReady,
+          x: Number(game.boat.x.toFixed(2)),
+          y: Number(game.boat.y.toFixed(2))
         },
         savedAt: Date.now()
       };
@@ -1131,7 +1139,7 @@
       const rare = 25 + levelOffset * 3;
       const precious = 5 + levelOffset * 1;
       const common = 100 - rare - precious;
-      const biteWindow = 2.4 + levelOffset * 0.15;
+      const biteWindow = 0.8 + levelOffset * 0.1;
       const sweetSpot = 0.28 + levelOffset * 0.02;
       return { common, rare, precious, biteWindow, sweetSpot };
     }
@@ -1467,6 +1475,15 @@
         game.fishing.result = fishType;
       } else {
         game.fishing.result = null;
+        if (!success) {
+          game.fishing.escapingFish.push({
+            x: game.fishing.bobberX,
+            y: game.fishing.bobberY,
+            vx: (Math.random() - 0.5) * 30,
+            vy: 45 + Math.random() * 25,
+            life: 1.0
+          });
+        }
       }
       game.fishing.phase = fishType ? "caught" : "done";
       game.fishing.exitAt = now + (fishType ? 0 : 520);
@@ -1490,6 +1507,16 @@
     }
 
     function updateFishing(now) {
+      for (let i = game.fishing.escapingFish.length - 1; i >= 0; i -= 1) {
+        const fish = game.fishing.escapingFish[i];
+        fish.x += fish.vx * game.dt;
+        fish.y += fish.vy * game.dt;
+        fish.life -= game.dt * 1.2;
+        if (fish.life <= 0) {
+          game.fishing.escapingFish.splice(i, 1);
+        }
+      }
+
       if (!game.fishing.active) {
         return;
       }
@@ -1545,7 +1572,7 @@
         return;
       }
       const now = performance.now();
-      const delay = 2400 + Math.random() * 2600;
+      const delay = 4000 + Math.random() * 5000;
       const castTarget = getCastTarget();
       game.fishing.phase = "waiting";
       game.fishing.castAt = now;
@@ -1657,9 +1684,11 @@
         saveGame(now);
       }
 
-      const targetX = game.boat.phase === "docked" ? WORLD.boatDockX : WORLD.boatDockX + 46;
-      game.boat.x += (targetX - game.boat.x) * Math.min(1, game.dt * 4.2);
-      game.boat.visible = Math.abs(game.boat.x - (WORLD.boatDockX + 46)) > 0.8 || game.boat.phase === "docked";
+      const targetX = game.boat.phase === "docked" ? WORLD.boatDockX : WORLD.boatDockX + 12;
+      const targetY = game.boat.phase === "docked" ? WORLD.boatY : WORLD.height + 60;
+      game.boat.x += (targetX - game.boat.x) * Math.min(1, game.dt * 2.0);
+      game.boat.y += (targetY - game.boat.y) * Math.min(1, game.dt * 1.2);
+      game.boat.visible = Math.abs(game.boat.y - (WORLD.height + 60)) > 2 || game.boat.phase === "docked";
     }
 
     function updatePlayer() {
@@ -1863,7 +1892,7 @@
       if (!game.boat.visible) {
         return;
       }
-      const p = worldToScreen(game.boat.x, WORLD.boatY);
+      const p = worldToScreen(game.boat.x, game.boat.y);
       const w = 46 * view.scaleX;
       const h = 16 * view.scaleY;
       ctx.fillStyle = "rgba(0,0,0,0.15)";
@@ -1954,6 +1983,25 @@
     }
 
     function drawFishingLayer(now) {
+      for (const fish of game.fishing.escapingFish) {
+        const p = worldToScreen(fish.x, fish.y);
+        const r = 5 * view.scaleX;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, fish.life);
+        ctx.fillStyle = "#5faeff";
+        const angle = Math.atan2(fish.vy, fish.vx);
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, r, r * 0.6, angle, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(p.x - Math.cos(angle) * r, p.y - Math.sin(angle) * r);
+        ctx.lineTo(p.x - Math.cos(angle + 0.5) * r * 1.8, p.y - Math.sin(angle + 0.5) * r * 1.8);
+        ctx.lineTo(p.x - Math.cos(angle - 0.5) * r * 1.8, p.y - Math.sin(angle - 0.5) * r * 1.8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
       if (!game.fishing.active) {
         return;
       }
