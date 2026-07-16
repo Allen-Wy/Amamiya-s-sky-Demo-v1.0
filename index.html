@@ -1139,7 +1139,7 @@
       const rare = 25 + levelOffset * 3;
       const precious = 5 + levelOffset * 1;
       const common = 100 - rare - precious;
-      const biteWindow = 0.8 + levelOffset * 0.1;
+      const biteWindow = 1.2 + levelOffset * 0.1;
       const sweetSpot = 0.28 + levelOffset * 0.02;
       return { common, rare, precious, biteWindow, sweetSpot };
     }
@@ -1554,7 +1554,7 @@
       }
 
       if (game.fishing.phase === "bite") {
-        const speed = 2.2 + game.rodLevel * 0.2;
+        const speed = 1.2 + game.rodLevel * 0.15;
         game.fishing.biteCursor += game.fishing.biteDirection * speed * game.dt;
         if (game.fishing.biteCursor >= 0.94) {
           game.fishing.biteCursor = 0.94;
