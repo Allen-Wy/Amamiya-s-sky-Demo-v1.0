@@ -113,6 +113,10 @@
       border-top: 2px dashed rgba(115, 73, 36, 0.25);
     }
 
+    #boatHudRow {
+      display: none;
+    }
+
     .fishText {
       font-size: 15px;
       line-height: 1.45;
@@ -426,7 +430,7 @@
 
     #catchCanvasWrap {
       position: relative;
-      width: min(100%, 220px);
+      width: min(100%, 228px);
       margin: 0 auto 10px;
     }
 
@@ -638,7 +642,7 @@
         <span class="hudLabel">鱼竿 / 房屋</span>
         <span id="rodText" class="hudValue">Lv.1 / Lv.1</span>
       </div>
-      <div class="hudRow">
+      <div id="boatHudRow" class="hudRow">
         <span class="hudLabel">游客船</span>
         <span id="boatText" class="hudValue">240s 后到</span>
       </div>
@@ -685,8 +689,8 @@
       <div id="catchCard">
         <div id="catchTitle">你钓上来了！</div>
         <div id="catchCanvasWrap">
-          <canvas id="catchCanvas" width="220" height="220"></canvas>
-          <canvas id="catchFxCanvas" width="220" height="220"></canvas>
+          <canvas id="catchCanvas" width="240" height="240"></canvas>
+          <canvas id="catchFxCanvas" width="240" height="240"></canvas>
         </div>
         <div id="catchLabel">普通鱼</div>
         <div id="catchContinue">点击屏幕任意处继续</div>
@@ -754,6 +758,7 @@
     const STORAGE_KEY = "islandFishingSaveV1";
     const SAVE_VERSION = 1;
     const AUTOSAVE_INTERVAL = 3000;
+    const BOAT_WAIT_MS = 100000;
 
     const game = {
       time: performance.now(),
@@ -763,7 +768,7 @@
       houseLevel: 1,
       rodLevel: 1,
       fishCounts: { common: 0, rare: 0, precious: 0 },
-      player: { x: 112, y: 152, speed: 40, radius: 6, facingX: 0, facingY: 1, bob: 0 },
+      player: { x: 112, y: 152, speed: 40, radius: 6, facingX: 0, facingY: 1, bob: 0, walkCycle: 0, moveBlend: 0 },
       joystick: { active: false, pointerId: null, x: 0, y: 0, length: 0 },
       context: { type: null, dimmed: false },
       toast: { text: "", until: 0 },
@@ -777,7 +782,7 @@
       },
       boat: {
         phase: "waiting",
-        nextArrivalAt: performance.now() + 240000,
+        nextArrivalAt: performance.now() + BOAT_WAIT_MS,
         departAt: 0,
         clickReady: false,
         sellReady: false,
@@ -822,7 +827,7 @@
         player: { x: 112, y: 152 },
         boat: {
           phase: "waiting",
-          nextArrivalInMs: 240000,
+          nextArrivalInMs: BOAT_WAIT_MS,
           departInMs: 0,
           sellReady: false
         },
@@ -898,10 +903,20 @@
     }
 
     function isOnPier(x, y) {
-      return x >= WORLD.pierBounds.left &&
-        x <= WORLD.pierBounds.right &&
-        y >= WORLD.pierBounds.top &&
-        y <= WORLD.pierBounds.bottom;
+      if (y < WORLD.pierBounds.top || y > WORLD.pierBounds.bottom) {
+        return false;
+      }
+      let left = WORLD.pierBounds.left;
+      let right = WORLD.pierBounds.right;
+      if (y >= 238) {
+        left = 103;
+        right = 113;
+      }
+      if (y >= 250) {
+        left = 105;
+        right = 111;
+      }
+      return x >= left && x <= right;
     }
 
     function isWalkable(x, y) {
@@ -934,13 +949,13 @@
       game.player.bob = 0;
 
       const boatPhase = source.boat && source.boat.phase === "docked" ? "docked" : "waiting";
-      const nextArrivalInMs = Math.max(0, Math.floor(source.boat && source.boat.nextArrivalInMs || 240000));
+      const nextArrivalInMs = Math.max(0, Math.floor(source.boat && source.boat.nextArrivalInMs || BOAT_WAIT_MS));
       const departInMs = Math.max(0, Math.floor(source.boat && source.boat.departInMs || 0));
       game.boat.phase = boatPhase;
       game.boat.sellReady = boatPhase === "docked" ? Boolean(source.boat && source.boat.sellReady) : false;
       if (boatPhase === "docked" && departInMs > 0) {
         game.boat.departAt = now + departInMs;
-        game.boat.nextArrivalAt = now + 240000;
+        game.boat.nextArrivalAt = now + BOAT_WAIT_MS;
         game.boat.x = WORLD.boatDockX;
         game.boat.visible = true;
       } else {
@@ -1155,7 +1170,9 @@
     function updateHud(now) {
       goldText.textContent = String(game.gold);
       rodText.textContent = "Lv." + game.rodLevel + " / Lv." + game.houseLevel;
-      boatText.textContent = getBoatCountdownText(now);
+      if (boatText) {
+        boatText.textContent = getBoatCountdownText(now);
+      }
       fishText.textContent = "普通:" + game.fishCounts.common + " 稀有:" + game.fishCounts.rare + " 珍贵:" + game.fishCounts.precious;
     }
 
@@ -1257,8 +1274,8 @@
       const count = fishType === "precious" ? 18 : (fishType === "rare" ? 10 : 0);
       for (let i = 0; i < count; i += 1) {
         particles.push({
-          x: 110 + (Math.random() - 0.5) * 92,
-          y: 118 + (Math.random() - 0.5) * 86,
+          x: 120 + (Math.random() - 0.5) * 96,
+          y: 124 + (Math.random() - 0.5) * 92,
           size: fishType === "precious" ? 2 + Math.random() * 4 : 3 + Math.random() * 5,
           vx: (Math.random() - 0.5) * (fishType === "precious" ? 24 : 16),
           vy: -(10 + Math.random() * 24),
@@ -1286,7 +1303,7 @@
         catchFxCtx.strokeStyle = "rgba(255, 212, 90," + (0.32 + pulse * 0.28).toFixed(2) + ")";
         catchFxCtx.lineWidth = 10;
         catchFxCtx.beginPath();
-        catchFxCtx.arc(110, 110, 72 + pulse * 6, 0, Math.PI * 2);
+        catchFxCtx.arc(120, 120, 78 + pulse * 6, 0, Math.PI * 2);
         catchFxCtx.stroke();
       }
 
@@ -1295,8 +1312,8 @@
         for (const particle of game.catchReveal.particles) {
           particle.age += delta;
           if (particle.age >= particle.life) {
-            particle.x = 110 + (Math.random() - 0.5) * 92;
-            particle.y = 118 + (Math.random() - 0.5) * 86;
+            particle.x = 120 + (Math.random() - 0.5) * 96;
+            particle.y = 124 + (Math.random() - 0.5) * 92;
             particle.size = 2 + Math.random() * 4;
             particle.vx = (Math.random() - 0.5) * 24;
             particle.vy = -(10 + Math.random() * 24);
@@ -1342,19 +1359,20 @@
 
       catchCtx.fillStyle = current.glow;
       catchCtx.beginPath();
-      catchCtx.arc(110, 110, 70, 0, Math.PI * 2);
+      catchCtx.arc(120, 120, 78, 0, Math.PI * 2);
       catchCtx.fill();
 
       catchCtx.fillStyle = "rgba(255,255,255,0.28)";
       for (let i = 0; i < 4; i += 1) {
         catchCtx.beginPath();
-        catchCtx.arc(52 + i * 38, 42 + (i % 2) * 16, 8 + i, 0, Math.PI * 2);
+        catchCtx.arc(60 + i * 38, 48 + (i % 2) * 16, 8 + i, 0, Math.PI * 2);
         catchCtx.fill();
       }
 
       catchCtx.save();
-      catchCtx.translate(112, 118);
+      catchCtx.translate(122, 126);
       catchCtx.rotate(-0.1);
+      catchCtx.scale(0.88, 0.88);
       catchCtx.fillStyle = current.body;
       catchCtx.beginPath();
       catchCtx.ellipse(10, 0, 58, 34, 0, 0, Math.PI * 2);
@@ -1488,8 +1506,8 @@
 
       if (game.fishing.phase === "waiting" || game.fishing.phase === "bite") {
         const wobble = Math.sin(now * 0.03) * 2 + Math.sin(now * 0.07) * 1.2;
-        game.fishing.bobberX += (game.fishing.castTargetX - game.fishing.bobberX) * 0.12;
-        game.fishing.bobberY += (game.fishing.castTargetY - game.fishing.bobberY) * 0.12;
+        game.fishing.bobberX += (game.fishing.castTargetX - game.fishing.bobberX) * 0.06;
+        game.fishing.bobberY += (game.fishing.castTargetY - game.fishing.bobberY) * 0.06;
         game.fishing.bobberX += wobble * 0.08;
         game.fishing.bobberY += Math.cos(now * 0.024) * 0.06;
       } else {
@@ -1516,7 +1534,7 @@
         return;
       }
       const now = performance.now();
-      const delay = 700 + Math.random() * 900;
+      const delay = 1800 + Math.random() * 2200;
       const castTarget = getCastTarget();
       game.fishing.phase = "waiting";
       game.fishing.castAt = now;
@@ -1622,7 +1640,7 @@
 
       if (game.boat.phase === "docked" && now >= game.boat.departAt) {
         game.boat.phase = "waiting";
-        game.boat.nextArrivalAt = now + 240000;
+        game.boat.nextArrivalAt = now + BOAT_WAIT_MS;
         game.boat.sellReady = false;
         showToast("游客船离开了", 1100);
         saveGame(now);
@@ -1641,6 +1659,7 @@
       const moveX = game.joystick.x;
       const moveY = game.joystick.y;
       const magnitude = Math.hypot(moveX, moveY);
+      game.player.moveBlend += (Math.min(1, magnitude * 1.4) - game.player.moveBlend) * Math.min(1, game.dt * 10);
       if (magnitude > 0.01) {
         game.player.facingX = moveX;
         game.player.facingY = moveY;
@@ -1654,11 +1673,12 @@
         } else if (isWalkable(game.player.x, nextY)) {
           game.player.y = nextY;
         }
+        game.player.walkCycle += game.dt * 14;
       }
 
       game.player.x = clamp(game.player.x, 22, WORLD.width - 22);
       game.player.y = clamp(game.player.y, 48, WORLD.pierBounds.bottom);
-      game.player.bob += game.dt * 7 * Math.min(1, magnitude + 0.2);
+      game.player.bob += game.dt * (2.2 + 5.6 * game.player.moveBlend);
     }
 
     function drawSkyAndIsland(now) {
@@ -1882,38 +1902,44 @@
     }
 
     function drawPlayer() {
-      const bob = Math.sin(game.player.bob) * 0.8;
-      const p = worldToScreen(game.player.x, game.player.y + bob);
+      const headBob = Math.sin(game.player.bob * 0.8) * (0.36 + game.player.moveBlend * 0.3);
+      const bodyBob = Math.sin(game.player.bob) * (0.24 + game.player.moveBlend * 0.2);
       const r = game.player.radius * view.scaleX;
+      const walkSwing = Math.sin(game.player.walkCycle) * game.player.moveBlend * (r * 0.34);
+      const p = worldToScreen(game.player.x, game.player.y + bodyBob);
+      const legLeftOffset = walkSwing;
+      const legRightOffset = -walkSwing;
+      const armLeftOffset = -walkSwing * 0.65;
+      const armRightOffset = walkSwing * 0.65;
 
       ctx.fillStyle = "rgba(0,0,0,0.15)";
       ctx.beginPath();
       ctx.ellipse(p.x, p.y + r * 2.15, r * 1.25, r * 0.62, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      ctx.fillStyle = "#f7c493";
+      ctx.fillRect(p.x - r * 1.08, p.y + r * 0.1 + armLeftOffset, r * 0.24, r * 0.86);
+      ctx.fillRect(p.x + r * 0.84, p.y + r * 0.1 + armRightOffset, r * 0.24, r * 0.86);
+      ctx.fillStyle = "#63493a";
+      ctx.fillRect(p.x - r * 0.6, p.y + r * 1.0 + legLeftOffset, r * 0.34, r * 0.84);
+      ctx.fillRect(p.x + r * 0.26, p.y + r * 1.0 + legRightOffset, r * 0.34, r * 0.84);
       ctx.fillStyle = "#3b2c22";
       ctx.beginPath();
-      ctx.arc(p.x, p.y - r * 0.9, r * 0.84, Math.PI, Math.PI * 2);
+      ctx.arc(p.x, p.y - r * 0.92 + headBob, r * 0.84, Math.PI, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#f7c493";
       ctx.beginPath();
-      ctx.arc(p.x, p.y - r * 0.72, r * 0.74, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y - r * 0.72 + headBob, r * 0.74, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#f7ecd5";
       ctx.fillRect(p.x - r * 0.84, p.y - r * 0.08, r * 1.68, r * 1.18);
       ctx.fillStyle = "#7dc6f1";
       ctx.fillRect(p.x - r * 0.92, p.y + r * 0.28, r * 1.84, r * 0.72);
-      ctx.fillStyle = "#f7c493";
-      ctx.fillRect(p.x - r * 1.12, p.y + r * 0.08, r * 0.26, r * 0.88);
-      ctx.fillRect(p.x + r * 0.86, p.y + r * 0.08, r * 0.26, r * 0.88);
-      ctx.fillStyle = "#63493a";
-      ctx.fillRect(p.x - r * 0.58, p.y + r * 1.0, r * 0.34, r * 0.84);
-      ctx.fillRect(p.x + r * 0.24, p.y + r * 1.0, r * 0.34, r * 0.84);
       ctx.fillStyle = "#fff";
-      ctx.fillRect(p.x - r * 0.28, p.y - r * 0.8, r * 0.16, r * 0.12);
-      ctx.fillRect(p.x + r * 0.12, p.y - r * 0.8, r * 0.16, r * 0.12);
+      ctx.fillRect(p.x - r * 0.28, p.y - r * 0.8 + headBob, r * 0.16, r * 0.12);
+      ctx.fillRect(p.x + r * 0.12, p.y - r * 0.8 + headBob, r * 0.16, r * 0.12);
       ctx.fillStyle = "#6f4a2a";
-      ctx.fillRect(p.x - r * 0.22, p.y - r * 0.42, r * 0.44, r * 0.08);
+      ctx.fillRect(p.x - r * 0.22, p.y - r * 0.42 + headBob, r * 0.44, r * 0.08);
     }
 
     function drawFishingLayer(now) {
