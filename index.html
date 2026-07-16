@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>海岛钓鱼休闲游戏</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --ui-cream: rgba(255, 247, 220, 0.84);
+      --ui-cream-solid: #fff3c8;
+      --ui-brown: #734924;
+      --ui-shadow: rgba(104, 63, 31, 0.2);
+      --gold: #ffcf48;
+      --rare: #ffd95f;
+      --precious: #bc80ff;
+      --common: #5faeff;
+      --disabled: #b6b7b3;
+      --safe-top: max(18px, env(safe-area-inset-top));
+      --safe-right: max(18px, env(safe-area-inset-right));
+      --safe-bottom: max(18px, env(safe-area-inset-bottom));
+      --safe-left: max(18px, env(safe-area-inset-left));
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      touch-action: none;
+      background:
+        radial-gradient(circle at top, #eff9bf 0%, #d4f0a0 28%, #93d56b 60%, #62c7bb 85%, #38a7c8 100%);
+      font-family: "Trebuchet MS", "Verdana", sans-serif;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    #gameShell {
+      position: relative;
+      width: min(100vw, 480px);
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 22%),
+        linear-gradient(180deg, #d3f8a4 0%, #a7df73 25%, #7bd1a6 52%, #5ed4d8 70%, #3db8d0 100%);
+      box-shadow: 0 24px 60px rgba(0, 30, 40, 0.25);
+      image-rendering: pixelated;
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    .panel {
+      position: absolute;
+      padding: 10px 12px;
+      border: 3px solid rgba(124, 76, 34, 0.9);
+      border-radius: 18px;
+      background: var(--ui-cream);
+      box-shadow: 0 8px 0 rgba(146, 94, 45, 0.6), 0 18px 24px var(--ui-shadow);
+      color: var(--ui-brown);
+      text-shadow: 0 1px rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(6px);
+    }
+
+    #hudLeft {
+      top: var(--safe-top);
+      left: var(--safe-left);
+      min-width: 148px;
+      z-index: 10;
+    }
+
+    #hudRight {
+      top: var(--safe-top);
+      right: var(--safe-right);
+      max-width: calc(100% - 170px);
+      z-index: 10;
+      text-align: right;
+    }
+
+    .hudLabel {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 1px;
+      opacity: 0.8;
+    }
+
+    .hudValue {
+      display: block;
+      font-size: 19px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .hudRow + .hudRow {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 2px dashed rgba(115, 73, 36, 0.25);
+    }
+
+    .fishText {
+      font-size: 15px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    #toast {
+      position: absolute;
+      left: 50%;
+      top: 23%;
+      transform: translate(-50%, -50%) scale(0.9);
+      max-width: calc(100% - 40px);
+      padding: 12px 18px;
+      border: 3px solid #76411d;
+      border-radius: 18px;
+      background: rgba(255, 244, 194, 0.92);
+      color: #77411f;
+      font-size: 18px;
+      font-weight: 700;
+      text-align: center;
+      box-shadow: 0 10px 0 rgba(118, 65, 29, 0.52);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      z-index: 20;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    #joystick {
+      position: absolute;
+      left: var(--safe-left);
+      bottom: calc(var(--safe-bottom) + 10px);
+      width: 148px;
+      height: 148px;
+      z-index: 12;
+      touch-action: none;
+    }
+
+    #joystickBase,
+    #joystickThumb {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    #joystickBase {
+      width: 124px;
+      height: 124px;
+      left: 12px;
+      top: 12px;
+      border: 3px solid rgba(255, 255, 255, 0.5);
+      background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.5), rgba(105, 151, 161, 0.2));
+      box-shadow: inset 0 5px 15px rgba(255,255,255,0.18), 0 8px 18px rgba(0, 44, 63, 0.18);
+    }
+
+    #joystickThumb {
+      width: 62px;
+      height: 62px;
+      left: 43px;
+      top: 43px;
+      border: 3px solid rgba(255, 255, 255, 0.65);
+      background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.9), rgba(255, 229, 157, 0.45));
+      box-shadow: 0 6px 12px rgba(0, 44, 63, 0.25);
+      transition: transform 0.05s linear;
+    }
+
+    #contextButton,
+    #fishingButton,
+    #modalActionButton,
+    #modalCloseButton {
+      appearance: none;
+      border: 0;
+      border-radius: 22px;
+      padding: 0 22px;
+      min-width: 112px;
+      height: 72px;
+      font-size: 24px;
+      font-weight: 800;
+      color: #704018;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 236, 181, 0.95));
+      border: 3px solid rgba(126, 70, 27, 0.9);
+      box-shadow: 0 9px 0 rgba(140, 80, 28, 0.7), 0 16px 28px rgba(0, 38, 46, 0.24);
+      text-shadow: 0 1px rgba(255,255,255,0.75);
+      cursor: pointer;
+      transition: transform 0.08s ease, filter 0.12s ease, opacity 0.12s ease;
+      touch-action: manipulation;
+    }
+
+    #contextButton:active,
+    #fishingButton:active,
+    #modalActionButton:active,
+    #modalCloseButton:active {
+      transform: translateY(4px);
+      box-shadow: 0 5px 0 rgba(140, 80, 28, 0.72), 0 10px 20px rgba(0, 38, 46, 0.24);
+    }
+
+    #contextButton {
+      position: absolute;
+      right: var(--safe-right);
+      bottom: calc(var(--safe-bottom) + 18px);
+      z-index: 15;
+      display: none;
+      min-width: 132px;
+      padding: 0 26px;
+    }
+
+    #contextButton.dimmed {
+      filter: grayscale(0.48);
+      background: linear-gradient(180deg, rgba(220, 220, 220, 0.9), rgba(172, 172, 172, 0.95));
+      color: #6f6f6f;
+      border-color: #888;
+      box-shadow: 0 8px 0 rgba(122, 122, 122, 0.74), 0 16px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    #fishingOverlay,
+    #modalOverlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      z-index: 30;
+    }
+
+    #fishingOverlay {
+      background: linear-gradient(180deg, rgba(4, 35, 49, 0.28), rgba(4, 35, 49, 0.45));
+      backdrop-filter: blur(3px);
+    }
+
+    #biteText {
+      position: absolute;
+      left: 50%;
+      top: 36%;
+      transform: translate(-50%, -50%) scale(0.9);
+      padding: 12px 16px;
+      border-radius: 18px;
+      border: 3px solid rgba(255,255,255,0.75);
+      background: rgba(255, 92, 92, 0.86);
+      color: #fff7e8;
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-shadow: 0 3px rgba(99, 29, 29, 0.3);
+      opacity: 0;
+      transition: opacity 0.1s linear, transform 0.1s linear;
+      pointer-events: none;
+    }
+
+    #biteText.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    #fishingHint {
+      position: absolute;
+      left: 50%;
+      top: calc(36% + 56px);
+      transform: translateX(-50%);
+      width: calc(100% - 48px);
+      text-align: center;
+      color: rgba(255,255,255,0.96);
+      font-size: 16px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.35);
+      pointer-events: none;
+    }
+
+    #fishingButton {
+      position: absolute;
+      right: var(--safe-right);
+      bottom: calc(var(--safe-bottom) + 18px);
+      z-index: 31;
+    }
+
+    #modalOverlay {
+      place-items: center;
+      background: rgba(21, 41, 47, 0.4);
+      backdrop-filter: blur(4px);
+    }
+
+    #modalCard {
+      width: min(88%, 360px);
+      padding: 18px 18px 16px;
+      border: 4px solid rgba(122, 70, 31, 0.95);
+      border-radius: 24px;
+      background: rgba(255, 246, 214, 0.95);
+      box-shadow: 0 10px 0 rgba(137, 82, 41, 0.72), 0 22px 34px rgba(0, 25, 30, 0.28);
+      color: #74431c;
+      text-align: center;
+    }
+
+    #modalTitle {
+      font-size: 28px;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+
+    #modalBody {
+      font-size: 17px;
+      line-height: 1.45;
+      white-space: pre-line;
+      margin-bottom: 16px;
+    }
+
+    .modalButtons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    #modalActionButton,
+    #modalCloseButton {
+      height: 62px;
+      min-width: 120px;
+      font-size: 20px;
+    }
+
+    #modalCloseButton {
+      background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(226, 230, 233, 0.95));
+    }
+
+    #legend {
+      position: absolute;
+      left: 50%;
+      bottom: calc(var(--safe-bottom) + 104px);
+      transform: translateX(-50%);
+      z-index: 10;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.95);
+      text-align: center;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.32);
+      pointer-events: none;
+      opacity: 0.85;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameShell">
+    <canvas id="gameCanvas" aria-label="海岛钓鱼游戏画布"></canvas>
+
+    <div id="hudLeft" class="panel">
+      <div class="hudRow">
+        <span class="hudLabel">金币</span>
+        <span id="goldText" class="hudValue">0</span>
+      </div>
+      <div class="hudRow">
+        <span class="hudLabel">鱼竿 / 房屋</span>
+        <span id="rodText" class="hudValue">Lv.1 / Lv.1</span>
+      </div>
+      <div class="hudRow">
+        <span class="hudLabel">游客船</span>
+        <span id="boatText" class="hudValue">240s 后到</span>
+      </div>
+    </div>
+
+    <div id="hudRight" class="panel">
+      <span class="hudLabel">鱼获</span>
+      <div id="fishText" class="fishText">普通:0 稀有:0 珍贵:0</div>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="legend">靠近海边钓鱼，靠近小屋升级，船到码头时点击船体卖鱼</div>
+
+    <div id="joystick" aria-hidden="true">
+      <div id="joystickBase"></div>
+      <div id="joystickThumb"></div>
+    </div>
+
+    <button id="contextButton" type="button">钓鱼</button>
+
+    <div id="fishingOverlay">
+      <div id="biteText">咬钩！</div>
+      <div id="fishingHint">点击右下角抛竿，看到提示后 2 秒内点屏幕任意位置拉杆</div>
+      <button id="fishingButton" type="button">抛竿</button>
+    </div>
+
+    <div id="modalOverlay">
+      <div id="modalCard">
+        <div id="modalTitle">升级房屋</div>
+        <div id="modalBody"></div>
+        <div class="modalButtons">
+          <button id="modalActionButton" type="button">确定</button>
+          <button id="modalCloseButton" type="button">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const shell = document.getElementById("gameShell");
+
+    const goldText = document.getElementById("goldText");
+    const rodText = document.getElementById("rodText");
+    const boatText = document.getElementById("boatText");
+    const fishText = document.getElementById("fishText");
+    const toast = document.getElementById("toast");
+    const contextButton = document.getElementById("contextButton");
+    const fishingOverlay = document.getElementById("fishingOverlay");
+    const fishingButton = document.getElementById("fishingButton");
+    const fishingHint = document.getElementById("fishingHint");
+    const biteText = document.getElementById("biteText");
+    const modalOverlay = document.getElementById("modalOverlay");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalBody = document.getElementById("modalBody");
+    const modalActionButton = document.getElementById("modalActionButton");
+    const modalCloseButton = document.getElementById("modalCloseButton");
+    const joystick = document.getElementById("joystick");
+    const joystickThumb = document.getElementById("joystickThumb");
+
+    const WORLD = {
+      width: 216,
+      height: 468,
+      shorelineY: 182,
+      waterStartY: 194,
+      pierX: 108,
+      pierY: 183,
+      hut: { x: 109, y: 98, width: 34, height: 28 },
+      waterSpot: { x: 116, y: 175 },
+      hutSpot: { x: 109, y: 134 },
+      boatDockX: 145,
+      boatY: 190
+    };
+
+    const UPGRADE_COSTS = { 2: 50, 3: 200, 4: 300 };
+    const PRICE = { common: 5, rare: 20, precious: 50 };
+    const FISH_NAMES = { common: "普通", rare: "稀有", precious: "珍贵" };
+
+    const game = {
+      time: performance.now(),
+      dt: 0,
+      gold: 0,
+      houseLevel: 1,
+      rodLevel: 1,
+      fishCounts: { common: 0, rare: 0, precious: 0 },
+      player: { x: 112, y: 152, speed: 40, radius: 6, facingX: 0, facingY: 1, bob: 0 },
+      joystick: { active: false, pointerId: null, x: 0, y: 0, length: 0 },
+      context: { type: null, dimmed: false },
+      toast: { text: "", until: 0 },
+      modal: { open: false, action: null },
+      boat: {
+        phase: "waiting",
+        nextArrivalAt: performance.now() + 240000,
+        departAt: 0,
+        clickReady: false,
+        sellReady: false,
+        x: WORLD.boatDockX + 46,
+        visible: false
+      },
+      fishing: {
+        active: false,
+        phase: "idle",
+        castAt: 0,
+        ignoreInputUntil: 0,
+        biteAt: 0,
+        resolveAt: 0,
+        exitAt: 0,
+        bobberX: WORLD.waterSpot.x,
+        bobberY: WORLD.waterSpot.y + 5,
+        result: null
+      }
+    };
+
+    let view = {
+      width: shell.clientWidth,
+      height: shell.clientHeight,
+      scaleX: shell.clientWidth / WORLD.width,
+      scaleY: shell.clientHeight / WORLD.height
+    };
+
+    function resizeCanvas() {
+      const rect = shell.getBoundingClientRect();
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      canvas.style.width = rect.width + "px";
+      canvas.style.height = rect.height + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      view.width = rect.width;
+      view.height = rect.height;
+      view.scaleX = rect.width / WORLD.width;
+      view.scaleY = rect.height / WORLD.height;
+    }
+
+    function worldToScreen(x, y) {
+      return { x: x * view.scaleX, y: y * view.scaleY };
+    }
+
+    function pointerToWorld(event) {
+      const rect = shell.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / view.scaleX;
+      const y = (event.clientY - rect.top) / view.scaleY;
+      return { x, y };
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function distance(a, b) {
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      return Math.hypot(dx, dy);
+    }
+
+    function getRodStats() {
+      const levelOffset = game.rodLevel - 1;
+      const rare = 25 + levelOffset * 3;
+      const precious = 5 + levelOffset * 1;
+      const common = 100 - rare - precious;
+      const biteWindow = 2 + levelOffset * 0.1;
+      return { common, rare, precious, biteWindow };
+    }
+
+    function getUpgradeCost(level) {
+      return UPGRADE_COSTS[level] || 0;
+    }
+
+    function showToast(text, duration) {
+      game.toast.text = text;
+      game.toast.until = performance.now() + (duration || 1500);
+      toast.textContent = text;
+      toast.classList.add("show");
+    }
+
+    function maybeHideToast(now) {
+      if (game.toast.until && now > game.toast.until) {
+        game.toast.until = 0;
+        toast.classList.remove("show");
+      }
+    }
+
+    function openModal(title, body, actionLabel, action) {
+      game.modal.open = true;
+      game.modal.action = action || null;
+      modalTitle.textContent = title;
+      modalBody.textContent = body;
+      modalActionButton.textContent = actionLabel || "确定";
+      modalOverlay.style.display = "grid";
+    }
+
+    function closeModal() {
+      game.modal.open = false;
+      game.modal.action = null;
+      modalOverlay.style.display = "none";
+    }
+
+    function getBoatCountdownText(now) {
+      if (game.boat.phase === "docked") {
+        const left = Math.max(0, Math.ceil((game.boat.departAt - now) / 1000));
+        return left + "s 停靠中";
+      }
+      const wait = Math.max(0, Math.ceil((game.boat.nextArrivalAt - now) / 1000));
+      return wait + "s 后到";
+    }
+
+    function updateHud(now) {
+      goldText.textContent = String(game.gold);
+      rodText.textContent = "Lv." + game.rodLevel + " / Lv." + game.houseLevel;
+      boatText.textContent = getBoatCountdownText(now);
+      fishText.textContent = "普通:" + game.fishCounts.common + " 稀有:" + game.fishCounts.rare + " 珍贵:" + game.fishCounts.precious;
+    }
+
+    function getContextAction() {
+      if (game.fishing.active || game.modal.open) {
+        return { type: null, dimmed: false };
+      }
+
+      if (game.boat.phase === "docked" && game.boat.sellReady) {
+        return { type: "sell", dimmed: false };
+      }
+
+      const nearWater = distance(game.player, WORLD.waterSpot) < 26 && game.player.y > 140;
+      if (nearWater) {
+        return { type: "fish", dimmed: false };
+      }
+
+      const nearHut = distance(game.player, WORLD.hutSpot) < 26;
+      if (nearHut) {
+        const nextLevel = game.houseLevel + 1;
+        if (nextLevel > 4) {
+          return { type: "max", dimmed: true };
+        }
+        return { type: "upgrade", dimmed: game.gold < getUpgradeCost(nextLevel) };
+      }
+
+      return { type: null, dimmed: false };
+    }
+
+    function updateContextButton() {
+      game.context = getContextAction();
+      const type = game.context.type;
+      if (!type) {
+        contextButton.style.display = "none";
+        return;
+      }
+
+      const labels = {
+        fish: "钓鱼",
+        upgrade: "升级",
+        sell: "卖鱼",
+        max: "满级"
+      };
+      contextButton.textContent = labels[type];
+      contextButton.classList.toggle("dimmed", game.context.dimmed || type === "max");
+      contextButton.style.display = "block";
+    }
+
+    function enterFishing() {
+      game.fishing.active = true;
+      game.fishing.phase = "ready";
+      game.fishing.result = null;
+      game.fishing.castAt = 0;
+      game.fishing.biteAt = 0;
+      game.fishing.resolveAt = 0;
+      game.fishing.exitAt = 0;
+      fishingOverlay.style.display = "block";
+      biteText.classList.remove("show");
+      fishingButton.textContent = "抛竿";
+      fishingHint.textContent = "点击右下角抛竿，看到提示后 2 秒内点屏幕任意位置拉杆";
+      updateContextButton();
+    }
+
+    function exitFishing() {
+      game.fishing.active = false;
+      game.fishing.phase = "idle";
+      fishingOverlay.style.display = "none";
+      biteText.classList.remove("show");
+      updateContextButton();
+    }
+
+    function chooseFishType() {
+      const roll = Math.random() * 100;
+      const stats = getRodStats();
+      if (roll < stats.precious) {
+        return "precious";
+      }
+      if (roll < stats.precious + stats.rare) {
+        return "rare";
+      }
+      return "common";
+    }
+
+    function finishFishing(success) {
+      const fishType = success ? chooseFishType() : null;
+      if (fishType) {
+        game.fishCounts[fishType] += 1;
+        game.fishing.result = fishType;
+        showToast("钓到" + FISH_NAMES[fishType] + "鱼！", 1500);
+      } else {
+        game.fishing.result = null;
+        showToast("鱼逃跑了", 1200);
+      }
+      game.fishing.phase = "done";
+      game.fishing.exitAt = performance.now() + 650;
+      biteText.classList.remove("show");
+      fishingHint.textContent = fishType ? "收线成功，自动回到岸边" : "本次没钓到，马上返回";
+    }
+
+    function updateFishing(now) {
+      if (!game.fishing.active) {
+        return;
+      }
+
+      if (game.fishing.phase === "waiting" && now >= game.fishing.biteAt) {
+        const biteWindow = getRodStats().biteWindow;
+        game.fishing.phase = "bite";
+        game.fishing.resolveAt = now + biteWindow * 1000;
+        biteText.classList.add("show");
+        fishingHint.textContent = "快点屏幕任意位置拉杆！";
+      }
+
+      if (game.fishing.phase === "bite" && now >= game.fishing.resolveAt) {
+        finishFishing(false);
+      }
+
+      if (game.fishing.phase === "done" && now >= game.fishing.exitAt) {
+        exitFishing();
+      }
+
+      if (game.fishing.phase === "waiting" || game.fishing.phase === "bite") {
+        const wobble = Math.sin(now * 0.03) * 2 + Math.sin(now * 0.07) * 1.2;
+        game.fishing.bobberX = WORLD.waterSpot.x + wobble * 0.35;
+        game.fishing.bobberY = WORLD.waterSpot.y + 7 + Math.cos(now * 0.024) * 0.8;
+      } else {
+        game.fishing.bobberX = WORLD.waterSpot.x;
+        game.fishing.bobberY = WORLD.waterSpot.y + 7;
+      }
+    }
+
+    function startCast() {
+      if (game.fishing.phase !== "ready") {
+        return;
+      }
+      const now = performance.now();
+      const delay = 1000 + Math.random() * 2000;
+      game.fishing.phase = "waiting";
+      game.fishing.castAt = now;
+      game.fishing.ignoreInputUntil = now + 220;
+      game.fishing.biteAt = now + delay;
+      fishingButton.textContent = "等待中";
+      fishingHint.textContent = "鱼漂在晃，别提前点屏幕";
+      showToast("已抛竿", 900);
+    }
+
+    function tryUpgrade() {
+      const nextLevel = game.houseLevel + 1;
+      if (nextLevel > 4) {
+        showToast("房屋已满级", 1200);
+        return;
+      }
+      const cost = getUpgradeCost(nextLevel);
+      if (game.gold < cost) {
+        showToast("金币不够，无法升级", 1300);
+        return;
+      }
+      const stats = getRodStats();
+      openModal(
+        "升级房屋",
+        "升级到 Lv." + nextLevel + " 需要 " + cost + " 金币\n\n当前鱼竿判定窗口: " + stats.biteWindow.toFixed(1) + " 秒\n升级后稀有鱼 +3%，珍贵鱼 +1%",
+        "升级",
+        function () {
+          game.gold -= cost;
+          game.houseLevel = nextLevel;
+          game.rodLevel = nextLevel;
+          showToast("升级成功！鱼竿升到 Lv." + game.rodLevel, 1500);
+          closeModal();
+          updateContextButton();
+        }
+      );
+    }
+
+    function getSellValue() {
+      return game.fishCounts.common * PRICE.common +
+        game.fishCounts.rare * PRICE.rare +
+        game.fishCounts.precious * PRICE.precious;
+    }
+
+    function sellFish() {
+      const total = getSellValue();
+      if (total <= 0) {
+        showToast("现在没有鱼可卖", 1200);
+        game.boat.sellReady = false;
+        updateContextButton();
+        return;
+      }
+
+      openModal(
+        "卖鱼",
+        "普通 " + game.fishCounts.common + " 条\n稀有 " + game.fishCounts.rare + " 条\n珍贵 " + game.fishCounts.precious + " 条\n\n总价: " + total + " 金币",
+        "一键全卖",
+        function () {
+          game.gold += total;
+          game.fishCounts.common = 0;
+          game.fishCounts.rare = 0;
+          game.fishCounts.precious = 0;
+          game.boat.sellReady = false;
+          showToast("卖出成功，获得 " + total + " 金币", 1600);
+          closeModal();
+          updateContextButton();
+        }
+      );
+    }
+
+    function handleContextAction() {
+      if (game.context.type === "fish") {
+        enterFishing();
+        return;
+      }
+      if (game.context.type === "upgrade" || game.context.type === "max") {
+        tryUpgrade();
+        return;
+      }
+      if (game.context.type === "sell") {
+        sellFish();
+      }
+    }
+
+    function updateBoat(now) {
+      if (game.boat.phase === "waiting" && now >= game.boat.nextArrivalAt) {
+        game.boat.phase = "docked";
+        game.boat.departAt = now + 7000;
+        game.boat.visible = true;
+        game.boat.sellReady = false;
+        showToast("游客船靠岸了！点船卖鱼", 1700);
+      }
+
+      if (game.boat.phase === "docked" && now >= game.boat.departAt) {
+        game.boat.phase = "waiting";
+        game.boat.nextArrivalAt = now + 240000;
+        game.boat.sellReady = false;
+        showToast("游客船离开了", 1100);
+      }
+
+      const targetX = game.boat.phase === "docked" ? WORLD.boatDockX : WORLD.boatDockX + 46;
+      game.boat.x += (targetX - game.boat.x) * Math.min(1, game.dt * 4.2);
+      game.boat.visible = Math.abs(game.boat.x - (WORLD.boatDockX + 46)) > 0.8 || game.boat.phase === "docked";
+    }
+
+    function updatePlayer() {
+      if (game.fishing.active || game.modal.open) {
+        return;
+      }
+
+      const moveX = game.joystick.x;
+      const moveY = game.joystick.y;
+      const magnitude = Math.hypot(moveX, moveY);
+      if (magnitude > 0.01) {
+        game.player.facingX = moveX;
+        game.player.facingY = moveY;
+        game.player.x += moveX * game.player.speed * game.dt;
+        game.player.y += moveY * game.player.speed * game.dt;
+      }
+
+      game.player.x = clamp(game.player.x, 22, WORLD.width - 22);
+      game.player.y = clamp(game.player.y, 48, WORLD.shorelineY + 3);
+      game.player.bob += game.dt * 7 * Math.min(1, magnitude + 0.2);
+    }
+
+    function drawSkyAndIsland(now) {
+      const w = view.width;
+      const h = view.height;
+
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, "#f4ffca");
+      sky.addColorStop(0.28, "#d8f4a8");
+      sky.addColorStop(0.55, "#81d595");
+      sky.addColorStop(1, "#3db8d0");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+
+      const shoreline = worldToScreen(0, WORLD.shorelineY);
+      const water = ctx.createLinearGradient(0, shoreline.y, 0, h);
+      water.addColorStop(0, "#7de9de");
+      water.addColorStop(0.18, "#59d6db");
+      water.addColorStop(0.7, "#34b8c9");
+      water.addColorStop(1, "#268daf");
+      ctx.fillStyle = water;
+      ctx.fillRect(0, shoreline.y, w, h - shoreline.y);
+
+      ctx.fillStyle = "#f6e3ac";
+      ctx.beginPath();
+      ctx.moveTo(0, worldToScreen(0, WORLD.shorelineY - 8).y);
+      ctx.bezierCurveTo(w * 0.18, shoreline.y - 26, w * 0.38, shoreline.y + 14, w * 0.62, shoreline.y - 8);
+      ctx.bezierCurveTo(w * 0.84, shoreline.y - 24, w * 0.94, shoreline.y + 8, w, shoreline.y - 2);
+      ctx.lineTo(w, shoreline.y + 40);
+      ctx.lineTo(0, shoreline.y + 22);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(255,255,255,0.58)";
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 5; i += 1) {
+        const waveY = shoreline.y + 5 + i * 15 + Math.sin(now * 0.0017 + i) * 4;
+        ctx.beginPath();
+        ctx.moveTo(8, waveY);
+        for (let x = 8; x < w - 8; x += 20) {
+          const y = waveY + Math.sin((x * 0.03) + now * 0.003 + i) * 3;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
+
+    function drawTree(x, y, size) {
+      const p = worldToScreen(x, y);
+      const canopy = size * view.scaleX;
+      ctx.fillStyle = "#7f4e2a";
+      ctx.fillRect(p.x - canopy * 0.12, p.y + canopy * 0.3, canopy * 0.24, canopy * 0.44);
+      ctx.fillStyle = "#7db24b";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, canopy * 0.42, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(p.x - canopy * 0.26, p.y + canopy * 0.06, canopy * 0.25, 0, Math.PI * 2);
+      ctx.arc(p.x + canopy * 0.24, p.y + canopy * 0.06, canopy * 0.23, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#a8d15e";
+      ctx.beginPath();
+      ctx.arc(p.x - canopy * 0.14, p.y - canopy * 0.12, canopy * 0.18, 0, Math.PI * 2);
+      ctx.arc(p.x + canopy * 0.18, p.y - canopy * 0.14, canopy * 0.14, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawRock(x, y, radius) {
+      const p = worldToScreen(x, y);
+      const r = radius * view.scaleX;
+      ctx.fillStyle = "#c8bfb8";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#9f968f";
+      ctx.beginPath();
+      ctx.arc(p.x - r * 0.18, p.y - r * 0.14, r * 0.58, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawHut() {
+      const hut = WORLD.hut;
+      const p = worldToScreen(hut.x, hut.y);
+      const w = hut.width * view.scaleX;
+      const h = hut.height * view.scaleY;
+
+      ctx.fillStyle = "#b96f34";
+      ctx.fillRect(p.x - w / 2, p.y - h / 2, w, h);
+      ctx.fillStyle = "#8e5126";
+      for (let i = 0; i < 5; i += 1) {
+        ctx.fillRect(p.x - w / 2, p.y - h / 2 + i * h / 5 + 1, w, 2);
+      }
+      ctx.fillStyle = "#cf8b42";
+      ctx.beginPath();
+      ctx.moveTo(p.x - w * 0.62, p.y - h * 0.32);
+      ctx.lineTo(p.x, p.y - h * 0.96);
+      ctx.lineTo(p.x + w * 0.62, p.y - h * 0.32);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#7d441d";
+      ctx.fillRect(p.x - w * 0.12, p.y - h * 0.02, w * 0.24, h * 0.52);
+      ctx.fillStyle = "#aad8f7";
+      ctx.fillRect(p.x - w * 0.34, p.y - h * 0.08, w * 0.16, h * 0.18);
+      ctx.fillRect(p.x + w * 0.18, p.y - h * 0.08, w * 0.16, h * 0.18);
+      ctx.fillStyle = "#e7b974";
+      ctx.fillRect(p.x - w * 0.2, p.y + h * 0.48, w * 0.4, h * 0.1);
+    }
+
+    function drawPier() {
+      const top = worldToScreen(WORLD.pierX, WORLD.pierY);
+      const plankWidth = 3.5 * view.scaleX;
+      const stepHeight = 7 * view.scaleY;
+      ctx.fillStyle = "#b7773e";
+      for (let i = 0; i < 7; i += 1) {
+        const y = top.y + i * stepHeight;
+        ctx.fillRect(top.x - plankWidth * 3, y, plankWidth * 6, stepHeight - 1);
+      }
+      ctx.fillStyle = "#86502b";
+      ctx.fillRect(top.x - plankWidth * 3.4, top.y, plankWidth * 0.8, stepHeight * 7 + 10);
+      ctx.fillRect(top.x + plankWidth * 2.6, top.y, plankWidth * 0.8, stepHeight * 7 + 10);
+    }
+
+    function drawBoat() {
+      if (!game.boat.visible) {
+        return;
+      }
+      const p = worldToScreen(game.boat.x, WORLD.boatY);
+      const w = 46 * view.scaleX;
+      const h = 16 * view.scaleY;
+      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + h * 0.8, w * 0.42, h * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#8e5226";
+      ctx.beginPath();
+      ctx.moveTo(p.x - w * 0.5, p.y);
+      ctx.lineTo(p.x + w * 0.5, p.y);
+      ctx.lineTo(p.x + w * 0.36, p.y + h);
+      ctx.lineTo(p.x - w * 0.36, p.y + h);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "#f5e9cd";
+      ctx.fillRect(p.x - w * 0.12, p.y - h * 0.86, w * 0.24, h * 0.9);
+      ctx.fillStyle = "#cf8f4b";
+      ctx.fillRect(p.x - w * 0.18, p.y - h * 0.24, w * 0.38, h * 0.34);
+      ctx.fillStyle = "#ffebb7";
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y - h * 0.82);
+      ctx.lineTo(p.x + w * 0.38, p.y - h * 0.26);
+      ctx.lineTo(p.x, p.y - h * 0.18);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawFishIcons() {
+      const baseX = view.width - 135;
+      const y = worldToScreen(0, 36).y;
+      const colors = ["#5faeff", "#ffd95f", "#bc80ff"];
+      for (let i = 0; i < 3; i += 1) {
+        const x = baseX + i * 34;
+        ctx.fillStyle = colors[i];
+        ctx.beginPath();
+        ctx.ellipse(x, y, 8, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x - 8, y);
+        ctx.lineTo(x - 16, y - 5);
+        ctx.lineTo(x - 16, y + 5);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    function drawPlayer() {
+      const bob = Math.sin(game.player.bob) * 0.8;
+      const p = worldToScreen(game.player.x, game.player.y + bob);
+      const r = game.player.radius * view.scaleX;
+
+      ctx.fillStyle = "rgba(0,0,0,0.15)";
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + r * 1.7, r * 1.05, r * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#f7c493";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y - r * 0.7, r * 0.72, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#f9f2c5";
+      ctx.fillRect(p.x - r * 0.86, p.y - r * 0.1, r * 1.72, r * 1.52);
+      ctx.fillStyle = "#d35d43";
+      ctx.fillRect(p.x - r * 0.92, p.y + r * 0.2, r * 1.84, r * 0.74);
+      ctx.fillStyle = "#6f4a2a";
+      ctx.fillRect(p.x - r * 1.08, p.y - r * 0.14, r * 2.16, r * 0.34);
+    }
+
+    function drawFishingLayer(now) {
+      if (!game.fishing.active) {
+        return;
+      }
+      const p = worldToScreen(game.fishing.bobberX, game.fishing.bobberY);
+      ctx.strokeStyle = "rgba(255,255,255,0.92)";
+      ctx.lineWidth = 2;
+      const rodOrigin = worldToScreen(game.player.x, game.player.y - 6);
+      ctx.beginPath();
+      ctx.moveTo(rodOrigin.x, rodOrigin.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+
+      const pulse = game.fishing.phase === "bite" ? 1 + Math.sin(now * 0.02) * 0.24 : 1;
+      ctx.fillStyle = "#ffefe8";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 7 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff6a5f";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y - 2, 4 * pulse, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.58)";
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + 9, 14 + Math.sin(now * 0.014) * 2, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawScene(now) {
+      ctx.clearRect(0, 0, view.width, view.height);
+      drawSkyAndIsland(now);
+
+      drawTree(54, 48, 18);
+      drawTree(83, 55, 20);
+      drawTree(131, 52, 19);
+      drawTree(162, 62, 17);
+      drawTree(35, 87, 18);
+      drawTree(178, 92, 18);
+      drawRock(42, 174, 11);
+      drawRock(57, 187, 8);
+      drawRock(71, 176, 5);
+      drawRock(58, 201, 6);
+      drawHut();
+      drawPier();
+      drawBoat();
+      drawPlayer();
+      drawFishingLayer(now);
+      drawFishIcons();
+    }
+
+    function gameLoop(now) {
+      game.dt = Math.min(0.033, (now - game.time) / 1000);
+      game.time = now;
+
+      updateBoat(now);
+      updatePlayer();
+      updateFishing(now);
+      updateContextButton();
+      updateHud(now);
+      maybeHideToast(now);
+      drawScene(now);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function resetJoystickVisual() {
+      joystickThumb.style.transform = "translate(0px, 0px)";
+    }
+
+    function setJoystickFromPointer(event) {
+      const rect = joystick.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      let dx = event.clientX - centerX;
+      let dy = event.clientY - centerY;
+      const maxLength = 42;
+      const length = Math.hypot(dx, dy);
+      if (length > maxLength) {
+        dx = (dx / length) * maxLength;
+        dy = (dy / length) * maxLength;
+      }
+      const norm = Math.hypot(dx, dy) || 1;
+      game.joystick.x = dx / maxLength;
+      game.joystick.y = dy / maxLength;
+      game.joystick.length = Math.min(1, length / maxLength);
+      joystickThumb.style.transform = "translate(" + dx + "px, " + dy + "px)";
+      if (norm > 0) {
+        game.player.facingX = dx / norm;
+        game.player.facingY = dy / norm;
+      }
+    }
+
+    joystick.addEventListener("pointerdown", function (event) {
+      game.joystick.active = true;
+      game.joystick.pointerId = event.pointerId;
+      joystick.setPointerCapture(event.pointerId);
+      setJoystickFromPointer(event);
+    });
+
+    joystick.addEventListener("pointermove", function (event) {
+      if (!game.joystick.active || game.joystick.pointerId !== event.pointerId) {
+        return;
+      }
+      setJoystickFromPointer(event);
+    });
+
+    function releaseJoystick(event) {
+      if (!game.joystick.active || game.joystick.pointerId !== event.pointerId) {
+        return;
+      }
+      game.joystick.active = false;
+      game.joystick.pointerId = null;
+      game.joystick.x = 0;
+      game.joystick.y = 0;
+      game.joystick.length = 0;
+      resetJoystickVisual();
+    }
+
+    joystick.addEventListener("pointerup", releaseJoystick);
+    joystick.addEventListener("pointercancel", releaseJoystick);
+
+    contextButton.addEventListener("click", function () {
+      handleContextAction();
+    });
+
+    fishingButton.addEventListener("pointerdown", function (event) {
+      event.stopPropagation();
+    });
+
+    fishingButton.addEventListener("click", function (event) {
+      event.stopPropagation();
+      startCast();
+    });
+
+    fishingOverlay.addEventListener("pointerdown", function (event) {
+      if (!game.fishing.active) {
+        return;
+      }
+      if (fishingButton.contains(event.target)) {
+        return;
+      }
+      if (performance.now() < game.fishing.ignoreInputUntil) {
+        return;
+      }
+      if (game.fishing.phase === "waiting") {
+        finishFishing(false);
+      } else if (game.fishing.phase === "bite") {
+        finishFishing(true);
+      }
+    });
+
+    modalActionButton.addEventListener("click", function () {
+      if (typeof game.modal.action === "function") {
+        game.modal.action();
+      } else {
+        closeModal();
+      }
+    });
+
+    modalCloseButton.addEventListener("click", closeModal);
+    modalOverlay.addEventListener("pointerdown", function (event) {
+      if (event.target === modalOverlay) {
+        closeModal();
+      }
+    });
+
+    canvas.addEventListener("pointerdown", function (event) {
+      if (game.fishing.active || game.modal.open || game.boat.phase !== "docked") {
+        return;
+      }
+      const pos = pointerToWorld(event);
+      const inBoat = Math.abs(pos.x - game.boat.x) < 22 && Math.abs(pos.y - WORLD.boatY - 6) < 15;
+      if (inBoat) {
+        game.boat.sellReady = true;
+        showToast("点击右下角卖鱼", 1200);
+        updateContextButton();
+      }
+    });
+
+    window.addEventListener("resize", resizeCanvas);
+    window.addEventListener("orientationchange", resizeCanvas);
+
+    window.fishingIslandDebug = {
+      addGold(amount) {
+        game.gold += amount;
+        showToast("调试加金币 +" + amount, 900);
+      },
+      forceBoat() {
+        game.boat.phase = "docked";
+        game.boat.departAt = performance.now() + 7000;
+        game.boat.visible = true;
+        game.boat.sellReady = false;
+        showToast("调试: 船已到港", 900);
+      },
+      state() {
+        return JSON.parse(JSON.stringify({
+          gold: game.gold,
+          houseLevel: game.houseLevel,
+          rodLevel: game.rodLevel,
+          fishCounts: game.fishCounts,
+          boat: {
+            phase: game.boat.phase,
+            sellReady: game.boat.sellReady
+          },
+          fishing: {
+            active: game.fishing.active,
+            phase: game.fishing.phase
+          },
+          rodStats: getRodStats()
+        }));
+      }
+    };
+
+    resizeCanvas();
+    updateHud(performance.now());
+    updateContextButton();
+    showToast("靠近海边开始钓鱼", 1600);
+    requestAnimationFrame(function (now) {
+      game.time = now;
+      gameLoop(now);
+    });
+  </script>
+</body>
+</html>
