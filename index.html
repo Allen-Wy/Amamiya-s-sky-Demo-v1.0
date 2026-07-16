@@ -364,6 +364,7 @@
     }
 
     #catchCard {
+      position: relative;
       width: min(82%, 320px);
       padding: 18px 18px 16px;
       border: 4px solid rgba(124, 73, 33, 0.96);
@@ -372,6 +373,61 @@
       box-shadow: 0 10px 0 rgba(135, 82, 40, 0.72), 0 22px 36px rgba(0, 22, 29, 0.28);
       text-align: center;
       color: #74431c;
+      overflow: hidden;
+      transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+    }
+
+    #catchCard::before {
+      content: "";
+      position: absolute;
+      inset: -22%;
+      background: radial-gradient(circle, rgba(255,255,255,0.32), rgba(255,255,255,0) 62%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #catchOverlay.rare #catchCard {
+      border-color: rgba(210, 151, 33, 0.98);
+      box-shadow: 0 10px 0 rgba(168, 112, 16, 0.72), 0 0 28px rgba(255, 209, 86, 0.58), 0 22px 36px rgba(0, 22, 29, 0.28);
+      animation: rarePulse 1.35s ease-in-out infinite;
+    }
+
+    #catchOverlay.rare #catchCard::before {
+      opacity: 1;
+      animation: rareGlow 1.35s ease-in-out infinite;
+    }
+
+    #catchOverlay.precious #catchCard {
+      border-color: rgba(124, 81, 214, 0.98);
+      box-shadow: 0 10px 0 rgba(98, 64, 176, 0.76), 0 0 30px rgba(173, 121, 255, 0.62), 0 22px 40px rgba(0, 16, 31, 0.34);
+      animation: preciousFloat 1.8s ease-in-out infinite;
+    }
+
+    #catchOverlay.precious #catchCard::before {
+      opacity: 1;
+      background: radial-gradient(circle, rgba(214, 178, 255, 0.36), rgba(137, 91, 214, 0.1) 38%, rgba(255,255,255,0) 70%);
+      animation: rareGlow 1.5s ease-in-out infinite;
+    }
+
+    @keyframes rarePulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.015); }
+    }
+
+    @keyframes preciousFloat {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-4px) scale(1.018); }
+    }
+
+    @keyframes rareGlow {
+      0%, 100% { transform: scale(0.94); opacity: 0.54; }
+      50% { transform: scale(1.04); opacity: 0.92; }
+    }
+
+    #catchCanvasWrap {
+      position: relative;
+      width: min(100%, 220px);
+      margin: 0 auto 10px;
     }
 
     #catchTitle {
@@ -381,15 +437,23 @@
     }
 
     #catchCanvas {
-      width: min(100%, 220px);
+      width: 100%;
       height: auto;
       aspect-ratio: 1 / 1;
       display: block;
-      margin: 0 auto 10px;
       image-rendering: pixelated;
       border-radius: 22px;
       background: linear-gradient(180deg, rgba(203, 244, 255, 0.92), rgba(150, 220, 234, 0.9));
       border: 3px solid rgba(122, 73, 35, 0.62);
+    }
+
+    #catchFxCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 22px;
+      pointer-events: none;
     }
 
     #catchLabel {
@@ -620,7 +684,10 @@
     <div id="catchOverlay">
       <div id="catchCard">
         <div id="catchTitle">你钓上来了！</div>
-        <canvas id="catchCanvas" width="220" height="220"></canvas>
+        <div id="catchCanvasWrap">
+          <canvas id="catchCanvas" width="220" height="220"></canvas>
+          <canvas id="catchFxCanvas" width="220" height="220"></canvas>
+        </div>
         <div id="catchLabel">普通鱼</div>
         <div id="catchContinue">点击屏幕任意处继续</div>
       </div>
@@ -658,6 +725,8 @@
     const catchOverlay = document.getElementById("catchOverlay");
     const catchCanvas = document.getElementById("catchCanvas");
     const catchCtx = catchCanvas.getContext("2d");
+    const catchFxCanvas = document.getElementById("catchFxCanvas");
+    const catchFxCtx = catchFxCanvas.getContext("2d");
     const catchLabel = document.getElementById("catchLabel");
     const joystick = document.getElementById("joystick");
     const joystickThumb = document.getElementById("joystickThumb");
@@ -699,7 +768,13 @@
       context: { type: null, dimmed: false },
       toast: { text: "", until: 0 },
       modal: { open: false, action: null },
-      catchReveal: { active: false, fishType: null },
+      catchReveal: {
+        active: false,
+        fishType: null,
+        particles: [],
+        shakeUntil: 0,
+        openedAt: 0
+      },
       boat: {
         phase: "waiting",
         nextArrivalAt: performance.now() + 240000,
@@ -1167,8 +1242,86 @@
     function closeCatchReveal() {
       game.catchReveal.active = false;
       game.catchReveal.fishType = null;
+      game.catchReveal.particles = [];
+      game.catchReveal.shakeUntil = 0;
+      game.catchReveal.openedAt = 0;
+      shell.style.transform = "";
+      catchOverlay.classList.remove("rare", "precious");
+      catchFxCtx.clearRect(0, 0, catchFxCanvas.width, catchFxCanvas.height);
       catchOverlay.style.display = "none";
       exitFishing();
+    }
+
+    function createRevealParticles(fishType) {
+      const particles = [];
+      const count = fishType === "precious" ? 18 : (fishType === "rare" ? 10 : 0);
+      for (let i = 0; i < count; i += 1) {
+        particles.push({
+          x: 110 + (Math.random() - 0.5) * 92,
+          y: 118 + (Math.random() - 0.5) * 86,
+          size: fishType === "precious" ? 2 + Math.random() * 4 : 3 + Math.random() * 5,
+          vx: (Math.random() - 0.5) * (fishType === "precious" ? 24 : 16),
+          vy: -(10 + Math.random() * 24),
+          life: 0.9 + Math.random() * 0.8,
+          age: Math.random() * 0.15
+        });
+      }
+      return particles;
+    }
+
+    function updateCatchEffects(now) {
+      if (!game.catchReveal.active) {
+        catchFxCtx.clearRect(0, 0, catchFxCanvas.width, catchFxCanvas.height);
+        if (!game.catchReveal.shakeUntil) {
+          shell.style.transform = "";
+        }
+        return;
+      }
+
+      const fishType = game.catchReveal.fishType;
+      catchFxCtx.clearRect(0, 0, catchFxCanvas.width, catchFxCanvas.height);
+
+      if (fishType === "rare") {
+        const pulse = 0.5 + 0.5 * Math.sin(now * 0.01);
+        catchFxCtx.strokeStyle = "rgba(255, 212, 90," + (0.32 + pulse * 0.28).toFixed(2) + ")";
+        catchFxCtx.lineWidth = 10;
+        catchFxCtx.beginPath();
+        catchFxCtx.arc(110, 110, 72 + pulse * 6, 0, Math.PI * 2);
+        catchFxCtx.stroke();
+      }
+
+      if (fishType === "precious") {
+        const delta = Math.min(0.033, game.dt || 0.016);
+        for (const particle of game.catchReveal.particles) {
+          particle.age += delta;
+          if (particle.age >= particle.life) {
+            particle.x = 110 + (Math.random() - 0.5) * 92;
+            particle.y = 118 + (Math.random() - 0.5) * 86;
+            particle.size = 2 + Math.random() * 4;
+            particle.vx = (Math.random() - 0.5) * 24;
+            particle.vy = -(10 + Math.random() * 24);
+            particle.life = 0.9 + Math.random() * 0.8;
+            particle.age = 0;
+          }
+          particle.x += particle.vx * delta;
+          particle.y += particle.vy * delta;
+          particle.vy += 14 * delta;
+          const alpha = 1 - (particle.age / particle.life);
+          catchFxCtx.fillStyle = "rgba(186, 125, 255," + (alpha * 0.9).toFixed(2) + ")";
+          catchFxCtx.beginPath();
+          catchFxCtx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+          catchFxCtx.fill();
+        }
+      }
+
+      if (game.catchReveal.shakeUntil > now) {
+        const shakePower = fishType === "precious" ? 2.2 : 1.1;
+        const offsetX = (Math.random() - 0.5) * shakePower;
+        const offsetY = (Math.random() - 0.5) * shakePower;
+        shell.style.transform = "translate(" + offsetX.toFixed(2) + "px, " + offsetY.toFixed(2) + "px)";
+      } else {
+        shell.style.transform = "";
+      }
     }
 
     function drawCatchFish(fishType) {
@@ -1243,6 +1396,13 @@
     function openCatchReveal(fishType) {
       game.catchReveal.active = true;
       game.catchReveal.fishType = fishType;
+      game.catchReveal.openedAt = performance.now();
+      game.catchReveal.shakeUntil = game.catchReveal.openedAt + (fishType === "precious" ? 520 : (fishType === "rare" ? 280 : 0));
+      game.catchReveal.particles = createRevealParticles(fishType);
+      catchOverlay.classList.remove("rare", "precious");
+      if (fishType === "rare" || fishType === "precious") {
+        catchOverlay.classList.add(fishType);
+      }
       drawCatchFish(fishType);
       catchOverlay.style.display = "grid";
     }
@@ -1858,6 +2018,7 @@
       updateHud(now);
       updateTitleScreen();
       maybeHideToast(now);
+      updateCatchEffects(now);
       drawScene(now);
 
       requestAnimationFrame(gameLoop);
