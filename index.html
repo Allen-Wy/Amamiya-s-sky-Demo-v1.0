@@ -186,7 +186,9 @@
     #contextButton,
     #fishingButton,
     #modalActionButton,
-    #modalCloseButton {
+    #modalCloseButton,
+    #loadSaveButton,
+    #newGameButton {
       appearance: none;
       border: 0;
       border-radius: 22px;
@@ -209,9 +211,21 @@
     #contextButton:active,
     #fishingButton:active,
     #modalActionButton:active,
-    #modalCloseButton:active {
+    #modalCloseButton:active,
+    #loadSaveButton:active,
+    #newGameButton:active {
       transform: translateY(4px);
       box-shadow: 0 5px 0 rgba(140, 80, 28, 0.72), 0 10px 20px rgba(0, 38, 46, 0.24);
+    }
+
+    #loadSaveButton[disabled],
+    #newGameButton[disabled] {
+      filter: grayscale(0.55);
+      background: linear-gradient(180deg, rgba(220, 220, 220, 0.92), rgba(170, 170, 170, 0.95));
+      color: #6d6d6d;
+      border-color: #888;
+      box-shadow: 0 8px 0 rgba(122, 122, 122, 0.74), 0 16px 24px rgba(0, 0, 0, 0.12);
+      cursor: default;
     }
 
     #contextButton {
@@ -349,11 +363,112 @@
       pointer-events: none;
       opacity: 0.85;
     }
+
+    #titleOverlay {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 20px max(28px, env(safe-area-inset-bottom));
+      background:
+        linear-gradient(180deg, rgba(12, 54, 68, 0.22), rgba(9, 28, 41, 0.48)),
+        radial-gradient(circle at 50% 20%, rgba(255,255,255,0.24), rgba(255,255,255,0) 44%);
+      backdrop-filter: blur(4px);
+    }
+
+    #titleCard {
+      width: min(90%, 364px);
+      padding: 26px 22px 22px;
+      border-radius: 28px;
+      border: 4px solid rgba(125, 73, 31, 0.95);
+      background: rgba(255, 244, 210, 0.95);
+      box-shadow: 0 12px 0 rgba(137, 82, 41, 0.74), 0 28px 40px rgba(0, 24, 31, 0.28);
+      text-align: center;
+      color: #74431c;
+      animation: titleFloat 3.6s ease-in-out infinite;
+    }
+
+    @keyframes titleFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    #titleEyebrow {
+      font-size: 12px;
+      letter-spacing: 2px;
+      font-weight: 800;
+      opacity: 0.72;
+    }
+
+    #titleHeading {
+      margin-top: 6px;
+      font-size: 34px;
+      line-height: 1.08;
+      font-weight: 900;
+      text-shadow: 0 2px rgba(255, 255, 255, 0.62);
+    }
+
+    #titleSubheading {
+      margin-top: 10px;
+      font-size: 15px;
+      line-height: 1.5;
+      color: rgba(116, 67, 28, 0.9);
+    }
+
+    #titleStatus {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 2px dashed rgba(122, 70, 31, 0.4);
+      background: rgba(255, 255, 255, 0.45);
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-line;
+      min-height: 84px;
+    }
+
+    #titleButtons {
+      margin-top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    #loadSaveButton,
+    #newGameButton {
+      width: 100%;
+      min-width: 0;
+      height: 68px;
+      font-size: 22px;
+    }
+
+    #titleFootnote {
+      margin-top: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: rgba(116, 67, 28, 0.72);
+    }
   </style>
 </head>
 <body>
   <div id="gameShell">
     <canvas id="gameCanvas" aria-label="海岛钓鱼游戏画布"></canvas>
+
+    <div id="titleOverlay">
+      <div id="titleCard">
+        <div id="titleEyebrow">WARM PIXEL ISLAND</div>
+        <div id="titleHeading">海岛钓鱼<br>休闲游戏</div>
+        <div id="titleSubheading">轻松上岛，抛竿钓鱼，卖鱼升级小屋。</div>
+        <div id="titleStatus">正在检查本地存档...</div>
+        <div id="titleButtons">
+          <button id="loadSaveButton" type="button">读取存档</button>
+          <button id="newGameButton" type="button">开始新游戏</button>
+        </div>
+        <div id="titleFootnote">游戏会自动保存到本机浏览器，下次可继续游玩。</div>
+      </div>
+    </div>
 
     <div id="hudLeft" class="panel">
       <div class="hudRow">
@@ -408,6 +523,12 @@
     const ctx = canvas.getContext("2d");
     const shell = document.getElementById("gameShell");
 
+    const titleOverlay = document.getElementById("titleOverlay");
+    const titleStatus = document.getElementById("titleStatus");
+    const loadSaveButton = document.getElementById("loadSaveButton");
+    const newGameButton = document.getElementById("newGameButton");
+    const hudLeft = document.getElementById("hudLeft");
+    const hudRight = document.getElementById("hudRight");
     const goldText = document.getElementById("goldText");
     const rodText = document.getElementById("rodText");
     const boatText = document.getElementById("boatText");
@@ -425,6 +546,7 @@
     const modalCloseButton = document.getElementById("modalCloseButton");
     const joystick = document.getElementById("joystick");
     const joystickThumb = document.getElementById("joystickThumb");
+    const legend = document.getElementById("legend");
 
     const WORLD = {
       width: 216,
@@ -443,10 +565,14 @@
     const UPGRADE_COSTS = { 2: 50, 3: 200, 4: 300 };
     const PRICE = { common: 5, rare: 20, precious: 50 };
     const FISH_NAMES = { common: "普通", rare: "稀有", precious: "珍贵" };
+    const STORAGE_KEY = "islandFishingSaveV1";
+    const SAVE_VERSION = 1;
+    const AUTOSAVE_INTERVAL = 3000;
 
     const game = {
       time: performance.now(),
       dt: 0,
+      started: false,
       gold: 0,
       houseLevel: 1,
       rodLevel: 1,
@@ -476,6 +602,9 @@
         bobberX: WORLD.waterSpot.x,
         bobberY: WORLD.waterSpot.y + 5,
         result: null
+      },
+      save: {
+        lastAutoSaveAt: 0
       }
     };
 
@@ -485,6 +614,213 @@
       scaleX: shell.clientWidth / WORLD.width,
       scaleY: shell.clientHeight / WORLD.height
     };
+
+    function createDefaultSaveData(now) {
+      return {
+        version: SAVE_VERSION,
+        gold: 0,
+        houseLevel: 1,
+        rodLevel: 1,
+        fishCounts: { common: 0, rare: 0, precious: 0 },
+        player: { x: 112, y: 152 },
+        boat: {
+          phase: "waiting",
+          nextArrivalInMs: 240000,
+          departInMs: 0,
+          sellReady: false
+        },
+        savedAt: now
+      };
+    }
+
+    function setGameplayUiVisible(visible) {
+      const display = visible ? "" : "none";
+      hudLeft.style.display = display;
+      hudRight.style.display = display;
+      joystick.style.display = display;
+      legend.style.display = display;
+      if (!visible) {
+        contextButton.style.display = "none";
+      }
+    }
+
+    function resetJoystickState() {
+      game.joystick.active = false;
+      game.joystick.pointerId = null;
+      game.joystick.x = 0;
+      game.joystick.y = 0;
+      game.joystick.length = 0;
+      resetJoystickVisual();
+    }
+
+    function resetTransientOverlays() {
+      resetJoystickState();
+      game.context.type = null;
+      game.context.dimmed = false;
+      game.modal.open = false;
+      game.modal.action = null;
+      modalOverlay.style.display = "none";
+      game.fishing.active = false;
+      game.fishing.phase = "idle";
+      game.fishing.castAt = 0;
+      game.fishing.ignoreInputUntil = 0;
+      game.fishing.biteAt = 0;
+      game.fishing.resolveAt = 0;
+      game.fishing.exitAt = 0;
+      game.fishing.bobberX = WORLD.waterSpot.x;
+      game.fishing.bobberY = WORLD.waterSpot.y + 7;
+      game.fishing.result = null;
+      fishingOverlay.style.display = "none";
+      biteText.classList.remove("show");
+      toast.classList.remove("show");
+      game.toast.text = "";
+      game.toast.until = 0;
+    }
+
+    function applySaveData(data, now) {
+      const source = data && data.version === SAVE_VERSION ? data : createDefaultSaveData(now);
+      game.gold = Math.max(0, Math.floor(Number(source.gold) || 0));
+      game.houseLevel = clamp(Math.floor(Number(source.houseLevel) || 1), 1, 4);
+      game.rodLevel = clamp(Math.floor(Number(source.rodLevel) || game.houseLevel), 1, 4);
+      game.fishCounts.common = Math.max(0, Math.floor(source.fishCounts && source.fishCounts.common || 0));
+      game.fishCounts.rare = Math.max(0, Math.floor(source.fishCounts && source.fishCounts.rare || 0));
+      game.fishCounts.precious = Math.max(0, Math.floor(source.fishCounts && source.fishCounts.precious || 0));
+      game.player.x = clamp(Number(source.player && source.player.x) || 112, 22, WORLD.width - 22);
+      game.player.y = clamp(Number(source.player && source.player.y) || 152, 48, WORLD.shorelineY + 3);
+      game.player.facingX = 0;
+      game.player.facingY = 1;
+      game.player.bob = 0;
+
+      const boatPhase = source.boat && source.boat.phase === "docked" ? "docked" : "waiting";
+      const nextArrivalInMs = Math.max(0, Math.floor(source.boat && source.boat.nextArrivalInMs || 240000));
+      const departInMs = Math.max(0, Math.floor(source.boat && source.boat.departInMs || 0));
+      game.boat.phase = boatPhase;
+      game.boat.sellReady = boatPhase === "docked" ? Boolean(source.boat && source.boat.sellReady) : false;
+      if (boatPhase === "docked" && departInMs > 0) {
+        game.boat.departAt = now + departInMs;
+        game.boat.nextArrivalAt = now + 240000;
+        game.boat.x = WORLD.boatDockX;
+        game.boat.visible = true;
+      } else {
+        game.boat.phase = "waiting";
+        game.boat.departAt = 0;
+        game.boat.nextArrivalAt = now + nextArrivalInMs;
+        game.boat.x = WORLD.boatDockX + 46;
+        game.boat.visible = false;
+        game.boat.sellReady = false;
+      }
+
+      resetTransientOverlays();
+      updateHud(now);
+      updateContextButton();
+    }
+
+    function readSaveData() {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          return null;
+        }
+        const parsed = JSON.parse(raw);
+        if (!parsed || parsed.version !== SAVE_VERSION) {
+          return null;
+        }
+        return parsed;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function getSavePayload(now) {
+      return {
+        version: SAVE_VERSION,
+        gold: game.gold,
+        houseLevel: game.houseLevel,
+        rodLevel: game.rodLevel,
+        fishCounts: {
+          common: game.fishCounts.common,
+          rare: game.fishCounts.rare,
+          precious: game.fishCounts.precious
+        },
+        player: {
+          x: Number(game.player.x.toFixed(2)),
+          y: Number(game.player.y.toFixed(2))
+        },
+        boat: {
+          phase: game.boat.phase,
+          nextArrivalInMs: Math.max(0, Math.ceil(game.boat.nextArrivalAt - now)),
+          departInMs: Math.max(0, Math.ceil(game.boat.departAt - now)),
+          sellReady: game.boat.sellReady
+        },
+        savedAt: Date.now()
+      };
+    }
+
+    function saveGame(now) {
+      if (!game.started) {
+        return false;
+      }
+      const saveTime = now || performance.now();
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(getSavePayload(saveTime)));
+        game.save.lastAutoSaveAt = saveTime;
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function formatDateTime(timestamp) {
+      const date = new Date(timestamp);
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const hour = String(date.getHours()).padStart(2, "0");
+      const minute = String(date.getMinutes()).padStart(2, "0");
+      return month + "/" + day + " " + hour + ":" + minute;
+    }
+
+    function updateTitleScreen() {
+      const saveData = readSaveData();
+      if (saveData) {
+        loadSaveButton.disabled = false;
+        titleStatus.textContent =
+          "检测到本地存档\n" +
+          "金币 " + saveData.gold +
+          "  房屋 Lv." + saveData.houseLevel +
+          "  鱼竿 Lv." + saveData.rodLevel + "\n" +
+          "鱼获 普通 " + saveData.fishCounts.common +
+          " / 稀有 " + saveData.fishCounts.rare +
+          " / 珍贵 " + saveData.fishCounts.precious + "\n" +
+          "保存于 " + formatDateTime(saveData.savedAt);
+      } else {
+        loadSaveButton.disabled = true;
+        titleStatus.textContent = "暂无本地存档\n点击“开始新游戏”登上小岛，系统会自动为你保存进度。";
+      }
+      titleOverlay.style.display = game.started ? "none" : "flex";
+      setGameplayUiVisible(game.started);
+    }
+
+    function startNewGame() {
+      const now = performance.now();
+      game.started = true;
+      applySaveData(createDefaultSaveData(now), now);
+      saveGame(now);
+      updateTitleScreen();
+      showToast("新的海岛生活开始了", 1600);
+    }
+
+    function loadSavedGame() {
+      const saveData = readSaveData();
+      if (!saveData) {
+        updateTitleScreen();
+        return;
+      }
+      const now = performance.now();
+      game.started = true;
+      applySaveData(saveData, now);
+      updateTitleScreen();
+      showToast("已读取存档", 1500);
+    }
 
     function resizeCanvas() {
       const rect = shell.getBoundingClientRect();
@@ -581,7 +917,7 @@
     }
 
     function getContextAction() {
-      if (game.fishing.active || game.modal.open) {
+      if (!game.started || game.fishing.active || game.modal.open) {
         return { type: null, dimmed: false };
       }
 
@@ -661,6 +997,7 @@
     }
 
     function finishFishing(success) {
+      const now = performance.now();
       const fishType = success ? chooseFishType() : null;
       if (fishType) {
         game.fishCounts[fishType] += 1;
@@ -671,9 +1008,10 @@
         showToast("鱼逃跑了", 1200);
       }
       game.fishing.phase = "done";
-      game.fishing.exitAt = performance.now() + 650;
+      game.fishing.exitAt = now + 650;
       biteText.classList.remove("show");
       fishingHint.textContent = fishType ? "收线成功，自动回到岸边" : "本次没钓到，马上返回";
+      saveGame(now);
     }
 
     function updateFishing(now) {
@@ -745,6 +1083,7 @@
           showToast("升级成功！鱼竿升到 Lv." + game.rodLevel, 1500);
           closeModal();
           updateContextButton();
+          saveGame(performance.now());
         }
       );
     }
@@ -777,6 +1116,7 @@
           showToast("卖出成功，获得 " + total + " 金币", 1600);
           closeModal();
           updateContextButton();
+          saveGame(performance.now());
         }
       );
     }
@@ -796,12 +1136,16 @@
     }
 
     function updateBoat(now) {
+      if (!game.started) {
+        return;
+      }
       if (game.boat.phase === "waiting" && now >= game.boat.nextArrivalAt) {
         game.boat.phase = "docked";
         game.boat.departAt = now + 7000;
         game.boat.visible = true;
         game.boat.sellReady = false;
         showToast("游客船靠岸了！点船卖鱼", 1700);
+        saveGame(now);
       }
 
       if (game.boat.phase === "docked" && now >= game.boat.departAt) {
@@ -809,6 +1153,7 @@
         game.boat.nextArrivalAt = now + 240000;
         game.boat.sellReady = false;
         showToast("游客船离开了", 1100);
+        saveGame(now);
       }
 
       const targetX = game.boat.phase === "docked" ? WORLD.boatDockX : WORLD.boatDockX + 46;
@@ -817,7 +1162,7 @@
     }
 
     function updatePlayer() {
-      if (game.fishing.active || game.modal.open) {
+      if (!game.started || game.fishing.active || game.modal.open) {
         return;
       }
 
@@ -1085,11 +1430,19 @@
       game.dt = Math.min(0.033, (now - game.time) / 1000);
       game.time = now;
 
-      updateBoat(now);
-      updatePlayer();
-      updateFishing(now);
+      if (game.started) {
+        updateBoat(now);
+        updatePlayer();
+        updateFishing(now);
+        if (now - game.save.lastAutoSaveAt >= AUTOSAVE_INTERVAL) {
+          saveGame(now);
+        }
+      } else {
+        game.dt = 0;
+      }
       updateContextButton();
       updateHud(now);
+      updateTitleScreen();
       maybeHideToast(now);
       drawScene(now);
 
@@ -1124,6 +1477,9 @@
     }
 
     joystick.addEventListener("pointerdown", function (event) {
+      if (!game.started) {
+        return;
+      }
       game.joystick.active = true;
       game.joystick.pointerId = event.pointerId;
       joystick.setPointerCapture(event.pointerId);
@@ -1153,7 +1509,21 @@
     joystick.addEventListener("pointercancel", releaseJoystick);
 
     contextButton.addEventListener("click", function () {
+      if (!game.started) {
+        return;
+      }
       handleContextAction();
+    });
+
+    loadSaveButton.addEventListener("click", function () {
+      if (loadSaveButton.disabled) {
+        return;
+      }
+      loadSavedGame();
+    });
+
+    newGameButton.addEventListener("click", function () {
+      startNewGame();
     });
 
     fishingButton.addEventListener("pointerdown", function (event) {
@@ -1198,7 +1568,7 @@
     });
 
     canvas.addEventListener("pointerdown", function (event) {
-      if (game.fishing.active || game.modal.open || game.boat.phase !== "docked") {
+      if (!game.started || game.fishing.active || game.modal.open || game.boat.phase !== "docked") {
         return;
       }
       const pos = pointerToWorld(event);
@@ -1216,6 +1586,7 @@
     window.fishingIslandDebug = {
       addGold(amount) {
         game.gold += amount;
+        saveGame(performance.now());
         showToast("调试加金币 +" + amount, 900);
       },
       forceBoat() {
@@ -1223,10 +1594,21 @@
         game.boat.departAt = performance.now() + 7000;
         game.boat.visible = true;
         game.boat.sellReady = false;
+        saveGame(performance.now());
         showToast("调试: 船已到港", 900);
+      },
+      clearSave() {
+        window.localStorage.removeItem(STORAGE_KEY);
+        game.started = false;
+        resetTransientOverlays();
+        updateTitleScreen();
+      },
+      loadSave() {
+        loadSavedGame();
       },
       state() {
         return JSON.parse(JSON.stringify({
+          started: game.started,
           gold: game.gold,
           houseLevel: game.houseLevel,
           rodLevel: game.rodLevel,
@@ -1247,7 +1629,7 @@
     resizeCanvas();
     updateHud(performance.now());
     updateContextButton();
-    showToast("靠近海边开始钓鱼", 1600);
+    updateTitleScreen();
     requestAnimationFrame(function (now) {
       game.time = now;
       gameLoop(now);
