@@ -430,7 +430,8 @@
 
     #catchCanvasWrap {
       position: relative;
-      width: min(100%, 228px);
+      width: min(100%, 240px);
+      aspect-ratio: 1 / 1;
       margin: 0 auto 10px;
     }
 
@@ -902,21 +903,31 @@
       return 184;
     }
 
-    function isOnPier(x, y) {
+    function getPierBoundsAt(y) {
       if (y < WORLD.pierBounds.top || y > WORLD.pierBounds.bottom) {
+        return null;
+      }
+      if (y >= 258) {
+        return { left: 105.5, right: 110.5 };
+      }
+      if (y >= 248) {
+        return { left: 104.5, right: 111.5 };
+      }
+      if (y >= 236) {
+        return { left: 103.5, right: 112.5 };
+      }
+      if (y >= 220) {
+        return { left: 102.5, right: 113.5 };
+      }
+      return { left: 101.5, right: 114.5 };
+    }
+
+    function isOnPier(x, y) {
+      const bounds = getPierBoundsAt(y);
+      if (!bounds) {
         return false;
       }
-      let left = WORLD.pierBounds.left;
-      let right = WORLD.pierBounds.right;
-      if (y >= 238) {
-        left = 103;
-        right = 113;
-      }
-      if (y >= 250) {
-        left = 105;
-        right = 111;
-      }
-      return x >= left && x <= right;
+      return x >= bounds.left && x <= bounds.right;
     }
 
     function isWalkable(x, y) {
@@ -1359,7 +1370,7 @@
 
       catchCtx.fillStyle = current.glow;
       catchCtx.beginPath();
-      catchCtx.arc(120, 120, 78, 0, Math.PI * 2);
+      catchCtx.arc(120, 120, 74, 0, Math.PI * 2);
       catchCtx.fill();
 
       catchCtx.fillStyle = "rgba(255,255,255,0.28)";
@@ -1370,9 +1381,9 @@
       }
 
       catchCtx.save();
-      catchCtx.translate(122, 126);
-      catchCtx.rotate(-0.1);
-      catchCtx.scale(0.88, 0.88);
+      catchCtx.translate(124, 128);
+      catchCtx.rotate(-0.08);
+      catchCtx.scale(0.8, 0.8);
       catchCtx.fillStyle = current.body;
       catchCtx.beginPath();
       catchCtx.ellipse(10, 0, 58, 34, 0, 0, Math.PI * 2);
@@ -1506,8 +1517,8 @@
 
       if (game.fishing.phase === "waiting" || game.fishing.phase === "bite") {
         const wobble = Math.sin(now * 0.03) * 2 + Math.sin(now * 0.07) * 1.2;
-        game.fishing.bobberX += (game.fishing.castTargetX - game.fishing.bobberX) * 0.06;
-        game.fishing.bobberY += (game.fishing.castTargetY - game.fishing.bobberY) * 0.06;
+        game.fishing.bobberX += (game.fishing.castTargetX - game.fishing.bobberX) * 0.045;
+        game.fishing.bobberY += (game.fishing.castTargetY - game.fishing.bobberY) * 0.045;
         game.fishing.bobberX += wobble * 0.08;
         game.fishing.bobberY += Math.cos(now * 0.024) * 0.06;
       } else {
@@ -1534,7 +1545,7 @@
         return;
       }
       const now = performance.now();
-      const delay = 1800 + Math.random() * 2200;
+      const delay = 2400 + Math.random() * 2600;
       const castTarget = getCastTarget();
       game.fishing.phase = "waiting";
       game.fishing.castAt = now;
