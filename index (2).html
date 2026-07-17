@@ -523,23 +523,22 @@
     const legend = document.getElementById("legend");
 
     const WORLD = {
-      width: 216,
-      height: 468,
-      shorelineY: 182,
-      waterStartY: 194,
+      width: 224,
+      height: 340,
+      shorelineY: 200,
+      waterSpot: { x: 112, y: 190 },
+      hutSpot: { x: 50, y: 120 },
+      hut: { x: 50, y: 120, width: 60, height: 48 },
       pierX: 108,
-      pierY: 183,
-      hut: { x: 109, y: 98, width: 34, height: 28 },
-      waterSpot: { x: 116, y: 175 },
-      hutSpot: { x: 109, y: 134 },
-      castTarget: { x: 118, y: 276 },
-      pierBounds: { left: 101, right: 115, top: 182, bottom: 268 },
-      boatDockX: 145,
-      boatY: 190
+      pierY: 200,
+      pierBounds: { top: 200, bottom: 270, left: 100, right: 116 },
+      castTarget: { x: 108, y: 260 },
+      boatDockX: 108,
+      boatY: 216
     };
 
     const UPGRADE_COSTS = { 2: 50, 3: 200, 4: 300 };
-   const PRICE = { common: 5, rare: 20, precious: 50 };
+    const PRICE = { common: 5, rare: 20, precious: 50 };
     const FISH_DATA = {
       common: [
         { name: "小沙丁鱼", body: "#5faeff", fin: "#3178df", scale: 0.9 },
@@ -554,19 +553,6 @@
         { name: "锦鲤", body: "#ff9f43", fin: "#ee5253", scale: 1.3 },
         { name: "金龙鱼", body: "#ffd700", fin: "#daa520", scale: 1.4 }
       ]
-    };
-    const WORLD = {
-      width: 224,
-      height: 340,
-      shorelineY: 200,
-      hutSpot: { x: 50, y: 120 },
-      hut: { x: 50, y: 120, width: 60, height: 48 },
-      pierX: 108,
-      pierY: 200,
-      pierBounds: { top: 200, bottom: 270, left: 100, right: 116 },
-      castTarget: { x: 108, y: 260 },
-      boatDockX: 108,
-      boatY: 216
     };
     const STORAGE_KEY = "islandFishingSaveV1";
     const SAVE_VERSION = 1;
@@ -649,7 +635,7 @@
           x: WORLD.boatDockX + 46,
           y: WORLD.height + 40
         },
-        savedAt: now
+        savedAt: Date.now()
       };
     }
 
