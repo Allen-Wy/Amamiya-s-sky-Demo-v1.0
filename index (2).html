@@ -539,8 +539,35 @@
     };
 
     const UPGRADE_COSTS = { 2: 50, 3: 200, 4: 300 };
-    const PRICE = { common: 5, rare: 20, precious: 50 };
-    const FISH_NAMES = { common: "普通", rare: "稀有", precious: "珍贵" };
+   const PRICE = { common: 5, rare: 20, precious: 50 };
+    const FISH_DATA = {
+      common: [
+        { name: "小沙丁鱼", body: "#5faeff", fin: "#3178df", scale: 0.9 },
+        { name: "小鲫鱼", body: "#8bb6d4", fin: "#5a8fb3", scale: 1.0 },
+        { name: "小鲈鱼", body: "#5499c7", fin: "#356e92", scale: 1.1 }
+      ],
+      rare: [
+        { name: "黑鲷", body: "#4a4a4a", fin: "#2a2a2a", scale: 1.2 },
+        { name: "真鲷", body: "#ff7676", fin: "#d64545", scale: 1.2 }
+      ],
+      precious: [
+        { name: "锦鲤", body: "#ff9f43", fin: "#ee5253", scale: 1.3 },
+        { name: "金龙鱼", body: "#ffd700", fin: "#daa520", scale: 1.4 }
+      ]
+    };
+    const WORLD = {
+      width: 224,
+      height: 340,
+      shorelineY: 200,
+      hutSpot: { x: 50, y: 120 },
+      hut: { x: 50, y: 120, width: 60, height: 48 },
+      pierX: 108,
+      pierY: 200,
+      pierBounds: { top: 200, bottom: 270, left: 100, right: 116 },
+      castTarget: { x: 108, y: 260 },
+      boatDockX: 108,
+      boatY: 216
+    };
     const STORAGE_KEY = "islandFishingSaveV1";
     const SAVE_VERSION = 1;
     const AUTOSAVE_INTERVAL = 3000;
@@ -562,6 +589,7 @@
       catchReveal: {
         active: false,
         fishType: null,
+        fishName: "",
         particles: [],
         shakeUntil: 0,
         openedAt: 0
@@ -1099,6 +1127,9 @@
         return;
       }
 
+      // Redraw the animated fish
+      drawCatchFish(game.catchReveal.fishType, game.catchReveal.fishName, now);
+
       const fishType = game.catchReveal.fishType;
       catchFxCtx.clearRect(0, 0, catchFxCanvas.width, catchFxCanvas.height);
 
@@ -1142,14 +1173,11 @@
       }
     }
 
-    function drawCatchFish(fishType) {
-      const palette = {
-        common: { body: "#5faeff", fin: "#3178df", label: "普通鱼" },
-        rare: { body: "#ffd45a", fin: "#f1a826", label: "稀有鱼" },
-        precious: { body: "#bd81ff", fin: "#7f52d7", label: "珍贵鱼" }
-      };
-      const current = palette[fishType] || palette.common;
-      catchLabel.textContent = current.label;
+    function drawCatchFish(fishType, fishName, now) {
+      const pool = FISH_DATA[fishType] || FISH_DATA.common;
+      const current = pool.find(f => f.name === fishName) || pool[0];
+      
+      catchLabel.textContent = current.name;
       catchCtx.clearRect(0, 0, catchCanvas.width, catchCanvas.height);
 
       // Simple pixel background
@@ -1160,13 +1188,17 @@
       catchCtx.fillStyle = "rgba(255,255,255,0.4)";
       for (let i = 0; i < 6; i += 1) {
         const bx = 40 + (i * 45) % 160;
-        const by = 40 + (i * 70) % 160;
+        const by = 40 + (i * 70 + (now * 0.05)) % 160; // Floating bubbles
         catchCtx.fillRect(bx, by, 8, 8);
       }
 
       catchCtx.save();
       catchCtx.translate(120, 120);
-      catchCtx.scale(1.2, 1.2);
+      const scale = 1.2 * (current.scale || 1.0);
+      catchCtx.scale(scale, scale);
+      
+      // Tail wagging animation
+      const tailWag = Math.sin(now * 0.012) * 8;
       
       // Fish Body (Blocky)
       catchCtx.fillStyle = current.body;
@@ -1174,8 +1206,14 @@
       
       // Fins
       catchCtx.fillStyle = current.fin;
-      // Tail
-      catchCtx.fillRect(-60, -25, 20, 50);
+      
+      // Tail with wagging
+      catchCtx.save();
+      catchCtx.translate(-40, 0);
+      catchCtx.rotate(tailWag * Math.PI / 180);
+      catchCtx.fillRect(-20, -25, 20, 50);
+      catchCtx.restore();
+
       // Top Fin
       catchCtx.fillRect(-10, -35, 30, 15);
       // Bottom Fin
@@ -1190,9 +1228,10 @@
       catchCtx.restore();
     }
 
-    function openCatchReveal(fishType) {
+    function openCatchReveal(fishType, fishName) {
       game.catchReveal.active = true;
       game.catchReveal.fishType = fishType;
+      game.catchReveal.fishName = fishName;
       game.catchReveal.openedAt = performance.now();
       game.catchReveal.shakeUntil = game.catchReveal.openedAt + (fishType === "precious" ? 520 : (fishType === "rare" ? 280 : 0));
       game.catchReveal.particles = createRevealParticles(fishType);
@@ -1200,7 +1239,7 @@
       if (fishType === "rare" || fishType === "precious") {
         catchOverlay.classList.add(fishType);
       }
-      drawCatchFish(fishType);
+      drawCatchFish(fishType, fishName, game.catchReveal.openedAt);
       catchOverlay.style.display = "grid";
     }
 
@@ -1218,23 +1257,27 @@
     function chooseFishType() {
       const roll = Math.random() * 100;
       const stats = getRodStats();
+      let type = "common";
       if (roll < stats.precious) {
-        return "precious";
+        type = "precious";
+      } else if (roll < stats.precious + stats.rare) {
+        type = "rare";
       }
-      if (roll < stats.precious + stats.rare) {
-        return "rare";
-      }
-      return "common";
+      const pool = FISH_DATA[type];
+      const fish = pool[Math.floor(Math.random() * pool.length)];
+      return { type, name: fish.name };
     }
 
     function finishFishing(success) {
       const now = performance.now();
-      const fishType = success ? chooseFishType() : null;
-      if (fishType) {
-        game.fishCounts[fishType] += 1;
-        game.fishing.result = fishType;
+      const fishResult = success ? chooseFishType() : null;
+      if (fishResult) {
+        game.fishCounts[fishResult.type] += 1;
+        game.fishing.result = fishResult.type;
+        game.fishing.caughtFishName = fishResult.name;
       } else {
         game.fishing.result = null;
+        game.fishing.caughtFishName = "";
         if (!success) {
           game.fishing.escapingFish.push({
             x: game.fishing.bobberX,
@@ -1245,14 +1288,14 @@
           });
         }
       }
-      game.fishing.phase = fishType ? "caught" : "done";
-      game.fishing.exitAt = now + (fishType ? 0 : 520);
+      game.fishing.phase = fishResult ? "caught" : "done";
+      game.fishing.exitAt = now + (fishResult ? 0 : 520);
       biteMeter.classList.remove("show");
       biteText.classList.remove("show");
       fishingButton.disabled = true;
       fishingButton.textContent = success ? "上鱼" : "脱钩";
-      if (fishType) {
-        openCatchReveal(fishType);
+      if (fishResult) {
+        openCatchReveal(fishResult.type, fishResult.name);
       }
       saveGame(now);
     }
