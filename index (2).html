@@ -139,7 +139,7 @@
     #joystick {
       position: absolute;
       left: var(--safe-left);
-      bottom: calc(var(--safe-bottom) + 10px);
+      bottom: calc(var(--safe-bottom) + 60px);
       width: 140px;
       height: 140px;
       z-index: 12;
@@ -531,7 +531,7 @@
       hut: { x: 50, y: 120, width: 60, height: 48 },
       pierX: 108,
       pierY: 200,
-      pierBounds: { top: 200, bottom: 270, left: 100, right: 116 },
+      pierBounds: { top: 200, bottom: 270, left: 98, right: 118 },
       castTarget: { x: 108, y: 260 },
       boatDockX: 108,
       boatY: 216
@@ -609,6 +609,14 @@
       },
       save: {
         lastAutoSaveAt: 0
+      },
+      sky: {
+        clouds: [
+          { x: 20, y: 30, speed: 2, w: 30, h: 12 },
+          { x: 100, y: 50, speed: 1.5, w: 40, h: 15 },
+          { x: 180, y: 20, speed: 2.5, w: 25, h: 10 }
+        ],
+        seagulls: []
       }
     };
 
@@ -710,19 +718,7 @@
       if (y < WORLD.pierBounds.top || y > WORLD.pierBounds.bottom) {
         return null;
       }
-      if (y >= 258) {
-        return { left: 105.5, right: 110.5 };
-      }
-      if (y >= 248) {
-        return { left: 104.5, right: 111.5 };
-      }
-      if (y >= 236) {
-        return { left: 103.5, right: 112.5 };
-      }
-      if (y >= 220) {
-        return { left: 102.5, right: 113.5 };
-      }
-      return { left: 101.5, right: 114.5 };
+      return { left: WORLD.pierBounds.left, right: WORLD.pierBounds.right };
     }
 
     function isOnPier(x, y) {
@@ -1452,6 +1448,41 @@
       }
     }
 
+    function updateSky(now) {
+      const delta = game.dt;
+      
+      // Update Clouds
+      for (const cloud of game.sky.clouds) {
+        cloud.x += cloud.speed * delta;
+        if (cloud.x > WORLD.width + 50) {
+          cloud.x = -cloud.w - 20;
+          cloud.y = 10 + Math.random() * 60;
+        }
+      }
+      
+      // Update Seagulls
+      if (game.sky.seagulls.length < 2 && Math.random() < 0.001) {
+        game.sky.seagulls.push({
+          x: -20,
+          y: 20 + Math.random() * 80,
+          speed: 30 + Math.random() * 20,
+          wingPos: 0,
+          wingDir: 1
+        });
+      }
+      
+      for (let i = game.sky.seagulls.length - 1; i >= 0; i--) {
+        const s = game.sky.seagulls[i];
+        s.x += s.speed * delta;
+        s.wingPos += s.wingDir * delta * 8;
+        if (s.wingPos > 1 || s.wingPos < -1) s.wingDir *= -1;
+        
+        if (s.x > WORLD.width + 20) {
+          game.sky.seagulls.splice(i, 1);
+        }
+      }
+    }
+
     function updateBoat(now) {
       if (!game.started) {
         return;
@@ -1510,6 +1541,37 @@
       game.player.bob += game.dt * (2.2 + 5.6 * game.player.moveBlend);
     }
 
+    function drawCloud(cloud) {
+      const p = worldToScreen(cloud.x, cloud.y);
+      const w = cloud.w * view.scaleX;
+      const h = cloud.h * view.scaleY;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+      
+      // Main body
+      ctx.fillRect(p.x, p.y, w, h);
+      // Puffy parts
+      ctx.fillRect(p.x + w * 0.2, p.y - h * 0.3, w * 0.6, h * 0.3);
+      ctx.fillRect(p.x + w * 0.1, p.y + h * 0.8, w * 0.4, h * 0.2);
+    }
+
+    function drawSeagull(s) {
+      const p = worldToScreen(s.x, s.y);
+      const size = 3 * view.scaleX;
+      ctx.fillStyle = "#fff";
+      
+      // Body
+      ctx.fillRect(p.x - size, p.y, size * 2, size);
+      
+      // Wings
+      const wingY = p.y + s.wingPos * size * 1.5;
+      ctx.fillRect(p.x - size * 2.5, wingY, size * 1.5, size * 0.6);
+      ctx.fillRect(p.x + size, wingY, size * 1.5, size * 0.6);
+      
+      // Beak
+      ctx.fillStyle = "#ffcf48";
+      ctx.fillRect(p.x + size, p.y + size * 0.2, size * 0.6, size * 0.4);
+    }
+
     function drawSkyAndIsland(now) {
       const w = view.width;
       const h = view.height;
@@ -1517,6 +1579,14 @@
       // Sky and Meadow
       ctx.fillStyle = "#ecf7ba";
       ctx.fillRect(0, 0, w, h);
+
+      // Draw Sky Details (Clouds & Seagulls)
+      for (const cloud of game.sky.clouds) {
+        drawCloud(cloud);
+      }
+      for (const s of game.sky.seagulls) {
+        drawSeagull(s);
+      }
 
       const shoreline = worldToScreen(0, WORLD.shorelineY);
       
@@ -1842,6 +1912,7 @@
       game.time = now;
 
       if (game.started) {
+        updateSky(now);
         updateBoat(now);
         updatePlayer();
         updateFishing(now);
